@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!--
+    The plugin's pure files, compiled in directly. The plugin is net472 against the game's
+    Unity assemblies and cannot be referenced from here, but these three are plain arithmetic
+    with no engine type in them, which is what makes them testable.
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\src\DarkNights.Client\NightModel.cs" Link="Client\NightModel.cs" />
+    <Compile Include="..\..\src\DarkNights.Client\Presets.cs" Link="Client\Presets.cs" />
+    <Compile Include="..\..\src\DarkNights.Client\Tracked.cs" Link="Client\Tracked.cs" />
+  </ItemGroup>
+
+</Project>
