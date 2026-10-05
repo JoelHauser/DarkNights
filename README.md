@@ -61,6 +61,10 @@ Press F12 (BepInEx Configuration Manager), or edit
 Dark Nights scales the game's own light where it's produced, instead of overwriting
 settings that other mods also change. In principle it stacks with graphics mods rather than
 fighting them. In practice that's not yet tested. Mods read so far: Amands's Graphics,
-Borkel's Realistic NVGs, FogSix and Better Night Skies.
+Borkel's Realistic NVGs, FogSix, Better Night Skies, SAIN, CloudSix, SSRSix, AOSix and POMSix.
+
+**CloudSix:** its volumetric clouds are lit separately from the rest of the game, so Dark
+Nights darkens them directly to match the night. If CloudSix's "Disable Eye Adaptation" is
+on (its default), exposure is locked by CloudSix and Dark Nights leaves it alone.
 
 If you also use a ReShade preset that crushes blacks, the two will stack.

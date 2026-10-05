@@ -171,6 +171,49 @@ with a visible edge that follows them.
   is off on 4.1 and that `LevelSettings` is destroyed after raid start -- **not verified
   here**. Against a darker scene its fog will look relatively bright; a sky/haze factor is
   the likely next feature.
+- **CloudSix 4.0.0** (matsix, github.com/matsixx/CloudSix, commit 91eaf37; GUID
+  `com.matsix.cloudsix`) -- **the user requires this one to work.** It prefix-skips
+  `CloudLayerRenderer.RenderClouds` and draws volumetric clouds lit by `_MoonIntensity`
+  (its config, default 1), `_MoonColor` = `TOD_Sky.MoonLightColor`, `_AmbientColor` =
+  `ToDController.AddTopAmbient` or its own sky-view LUT ("Ambient From Sky", default on),
+  times `_AmbientStrength` -- none via SetSH, so our sky scaling never reached them.
+  `CloudSixBridge`: postfix on `WeatherController.LateUpdate` with `after = cloudsix` and
+  `Priority.Last`, scaling `_MoonIntensity` by the moonlight factor and `_AmbientStrength`
+  by the ambient factor on `VolCloudRenderer.lowMaterial`, through `Tracked`.
+  `_AmbientColor` deliberately not scaled: the shader is in its bundle and if strength
+  multiplies colour, both would double-darken -- **check in game**. Everything else coexists:
+  its "Ground Lighting From Sky" swaps the hue of `ToDController.LightColor`/`AddTopAmbient`
+  by day only (upstream of SetSH, so the darkening stacks); its "Disable Eye Adaptation"
+  (default **on**) pins Prism lower = upper = "World Exposure" (0.8) every frame, so our
+  exposure ceiling is a no-op (it never goes below the lower limit) and the log's "written
+  by others: exposure" climbs every frame -- expected, not a fight; its `TOD_Sky.LateUpdate`
+  postfix only disables the atmosphere renderer. With CloudSix the vanilla cloud patch
+  (`CloudController.UpdateAmbient`) is harmless and idle.
+- **SSRSix 1.0.0** (github.com/matsixx/SSRSix, commit f907743; `com.matsix.ssrsix`): its own
+  SSR, composited into `source` from a `Priority.First` prefix on
+  `TOD_Scattering.OnRenderImageNormalMode` that returns true (so FogSix/vanilla fog still
+  runs after it), plus a prefix making PPv2 `ScreenSpaceReflections.IsEnabledAndSupported`
+  false so the game's SSR never renders while the **setting stays on** -- its author found
+  that with the setting off, materials bake in day-baked reflection-probe specular that
+  turns into white sparkle at night. It traces the lit scene (already darkened by us) and
+  falls back to the on-screen sky or CloudSix's published `_SsrSkyReflMap`. **Consequence
+  for us:** with the SSR setting on, `AmbientLight` uses 1 instead of
+  `wetting * ReflectionIntensity`, so `Reflections` is a no-op -- harmless, and the
+  reflections it would have dimmed come from the dark screen anyway. Same holds for vanilla
+  SSR on. No hook in common.
+- **AOSix 2.0.0** (github.com/matsixx/AOSix, commit d78ed84; `com.matsix.aosix`): prefix on
+  `CameraManager.SetSSAO` swapping HBAO/PPv2 AO for its own, and a postfix on
+  `AmbientLight.Initialize` swapping `_screenAmbientMaterial`'s shader for an AO-aware
+  port of EFT's Custom Ambient. Our SetSH prefix scales the global harmonics that shader
+  reads, not the shader, so the darkening carries through and AO shades it. No hook in
+  common. (Its source shows the patched assembly exposes `AmbientLight.Initialize` and
+  `_screenAmbientMaterial` by name; `GameTypes` finds the volume registries by type, so it
+  works whatever they are called.)
+- **POMSix 1.0.1** (github.com/matsixx/POMSix, commit f4bf63d; `com.matsix.pomsix`): only
+  postfixes `MicroSplatTerrain.Sync` / `MicroSplatMeshTerrain.Sync` to swap terrain and road
+  shaders for parallax-occlusion ones and publishes its own `_POMSix*` globals. No lighting,
+  sky, exposure or reflection code. Ambient reaches terrain through `AmbientLight`'s deferred
+  screen pass, not the terrain shader, so the darkening is unaffected. Nothing in common.
 - **Better Night Skies 2.0.0**: replaces the star material, sets `Stars.Brightness`. Low risk.
 - **Time & Weather Changer NG 2.7.0**: not read. The model reads the live sun, so it follows.
 - **Realistic Lighting for Tarkov 2.0.1**: SPT 3.11 only; ReShade plus an Amands config.

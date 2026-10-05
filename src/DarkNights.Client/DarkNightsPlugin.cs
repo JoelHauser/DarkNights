@@ -24,6 +24,7 @@ namespace DarkNights.Client
     /// </summary>
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
     [BepInDependency(SainBridge.SainGuid, BepInDependency.DependencyFlags.SoftDependency)]
+    [BepInDependency(CloudSixBridge.CloudSixGuid, BepInDependency.DependencyFlags.SoftDependency)]
     public sealed class DarkNightsPlugin : BaseUnityPlugin
     {
         public const string PluginGuid = "com.mybutthasarash.darknights";
@@ -82,6 +83,7 @@ namespace DarkNights.Client
             Install(harmony);
             HandGlow.Install(harmony);
             SainBridge.Install(harmony, Log);
+            CloudSixBridge.Install(harmony, Log);
 
             Log.LogInfo($"{PluginName} {PluginVersion} loaded. Darkness: {Darkness.Value}.");
         }
@@ -132,8 +134,9 @@ namespace DarkNights.Client
                 "back away. Lit areas still expose normally.");
             DarkenReflections = Config.Bind(parts, "Reflections", true,
                 "The sky reflection on metal, glass and wet ground -- your weapon included. Without this, shiny " +
-                "surfaces keep their daytime shine against a dark world. Screen-space reflections already follow " +
-                "the darker scene.");
+                "surfaces keep their daytime shine against a dark world. With SSR on in the graphics settings " +
+                "(or SSRSix installed) the game does not use this value: reflections then come from the screen, " +
+                "which already follows the darker night, and this setting has nothing to do.");
             HandGlowAmount = Config.Bind(parts, "Hand Glow", 0f,
                 new ConfigDescription("EFT draws an extra ambient pass over your hands -- and your weapon, wherever the " +
                     "game counts it as part of them -- plus characters where the game sets it, so they stay bright. " +

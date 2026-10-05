@@ -97,7 +97,7 @@ namespace DarkNights.Client
                 Interiors.RangeMultiplier != 1f ? " (TEST x4)" : string.Empty,
                 Interiors.FillLightsOff ? " (TEST fill off)" : string.Empty,
                 Patches.MoonlightTracking.BaseChanges, EyeAdaptation.OtherWrites,
-                SainBridge.Report(),
+                SainBridge.Report() + CloudSixBridge.Report(),
                 Reflections.LastWritten, Reflections.LastBase));
         }
 
