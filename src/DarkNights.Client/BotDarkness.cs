@@ -137,7 +137,7 @@ namespace DarkNights.Client
             catch (Exception e)
             {
                 _failed = true;
-                DarkNightsPlugin.Log.LogError("Bots in the dark turned off after an error: " + e);
+                Faults.Report(Faults.Part.Bots, "bots see in the dark as before", e, giveUp: true);
             }
             finally
             {
@@ -213,9 +213,15 @@ namespace DarkNights.Client
             }
 
             var position = (Vector3)GameTypes.IPlayer_Position.GetValue(person, null);
-            bool bunker = NightDriver.IsBunkerAt(position);
+            float nightness = NightDriver.SkyNightness;
+            bool byDay = DarkNightsPlugin.DarkRoomsByDay.Value;
+
+            // By day with rooms only dark at night there is nothing to probe: the room counts as open.
+            bool probe = byDay || nightness > 0f;
+            bool bunker = probe && NightDriver.IsBunkerAt(position);
             bool inside = bunker || (bool)GameTypes.AIData_IsInside.GetValue(ai, null);
-            float daylight = bunker ? 0f : TargetDaylight(person, position, now);
+            float sealedOff = !probe ? 0f : bunker ? 1f : 1f - TargetDaylight(person, position, now);
+            float daylight = 1f - NightModel.RoomDarkness(sealedOff, nightness, byDay);
             float value;
             if (NightDriver.SkyNightness <= 0f && daylight >= 1f)
             {

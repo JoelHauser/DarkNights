@@ -114,7 +114,7 @@ namespace DarkNights.Client
             catch (Exception e)
             {
                 _failed = true;
-                DarkNightsPlugin.Log.LogError("CloudSix bridge turned off after an error; its clouds keep their own brightness. " + e);
+                Faults.Report(Faults.Part.CloudSix, "CloudSix's clouds keep their own night brightness", e, giveUp: true);
             }
             finally
             {

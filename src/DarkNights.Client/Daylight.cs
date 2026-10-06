@@ -52,8 +52,10 @@ namespace DarkNights.Client
                 Here = 1f;
             }
 
-            // Off, suspended by the A/B key, or on an excluded map: no rays.
-            if (!DarkNightsPlugin.DarkWithoutDaylight.Value || NightDriver.Location == null || !string.IsNullOrEmpty(NightDriver.Idle))
+            // Off, suspended by the A/B key, on an excluded map, or by day when rooms are only
+            // dark at night: no rays.
+            if (!DarkNightsPlugin.DarkWithoutDaylight.Value || NightDriver.Location == null || !string.IsNullOrEmpty(NightDriver.Idle)
+                || (!DarkNightsPlugin.DarkRoomsByDay.Value && NightDriver.SkyNightness <= 0f))
             {
                 Here = 1f;
                 return;

@@ -17,13 +17,25 @@ namespace DarkNights.Client
         /// </summary>
         internal static void SkyAmbientPrefix(object __instance, ref SphericalHarmonicsL2 __0)
         {
+            if (Faults.IsOff(Faults.Part.SkyAmbient))
+            {
+                return;
+            }
+
             NightState night = NightDriver.Get();
             long started = Perf.Start();
-            Reflections.Seen(__instance as Object);
-            LastSkyStrength = 0.2126f * __0[0, 0] + 0.7152f * __0[1, 0] + 0.0722f * __0[2, 0];
-            if (DarkNightsPlugin.DarkenSky.Value)
+            try
             {
-                Scale(ref __0, night.Ambient);
+                Reflections.Seen(__instance as Object);
+                LastSkyStrength = 0.2126f * __0[0, 0] + 0.7152f * __0[1, 0] + 0.0722f * __0[2, 0];
+                if (DarkNightsPlugin.DarkenSky.Value)
+                {
+                    Scale(ref __0, night.Ambient);
+                }
+            }
+            catch (System.Exception e)
+            {
+                Faults.Report(Faults.Part.SkyAmbient, "the sky ambient is vanilla", e);
             }
 
             Perf.Stop(Perf.Part.Hooks, started);
@@ -51,9 +63,22 @@ namespace DarkNights.Client
         /// </summary>
         internal static void FlatAmbientPostfix(object __instance)
         {
+            if (Faults.IsOff(Faults.Part.FlatAmbient))
+            {
+                return;
+            }
+
             float f = NightDriver.Get().Ambient;
             long started = Perf.Start();
-            ScaleFlatAmbient(__instance, f);
+            try
+            {
+                ScaleFlatAmbient(__instance, f);
+            }
+            catch (System.Exception e)
+            {
+                Faults.Report(Faults.Part.FlatAmbient, "the flat map ambient is vanilla", e);
+            }
+
             Perf.Stop(Perf.Part.Hooks, started);
         }
 
@@ -124,19 +149,31 @@ namespace DarkNights.Client
         /// </summary>
         internal static void MoonlightPostfix(object __instance)
         {
+            if (Faults.IsOff(Faults.Part.Moonlight))
+            {
+                return;
+            }
+
             NightState night = NightDriver.Get();
             long started = Perf.Start();
-            Light light = GameTypes.SkyLight(__instance);
-            if (light != null)
+            try
             {
-                if (!ReferenceEquals(light, _light))
+                Light light = GameTypes.SkyLight(__instance);
+                if (light != null)
                 {
-                    _light = light;
-                    _moonlight = new Tracked();
-                }
+                    if (!ReferenceEquals(light, _light))
+                    {
+                        _light = light;
+                        _moonlight = new Tracked();
+                    }
 
-                float factor = DarkNightsPlugin.DarkenMoonlight.Value ? night.Moonlight : 1f;
-                light.intensity = _moonlight.Apply(light.intensity, factor);
+                    float factor = DarkNightsPlugin.DarkenMoonlight.Value ? night.Moonlight : 1f;
+                    light.intensity = _moonlight.Apply(light.intensity, factor);
+                }
+            }
+            catch (System.Exception e)
+            {
+                Faults.Report(Faults.Part.Moonlight, "the moonlight is vanilla", e);
             }
 
             Perf.Stop(Perf.Part.Hooks, started);

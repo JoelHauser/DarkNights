@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.Globalization;
+using BepInEx.Configuration;
 using UnityEngine;
 
 namespace DarkNights.Client
@@ -79,12 +82,53 @@ namespace DarkNights.Client
             Write();
         }
 
+        /// <summary>
+        /// The first line of every raid: the map, the version, and every setting that is not at
+        /// its default -- so a report of "too bright" or "bots see me" comes with the settings
+        /// it was played on, not only the changes made during the session.
+        /// </summary>
+        internal static void RaidStarted()
+        {
+            try
+            {
+                var changed = new List<string>();
+                foreach (KeyValuePair<ConfigDefinition, ConfigEntryBase> pair in DarkNightsPlugin.Configuration)
+                {
+                    ConfigEntryBase entry = pair.Value;
+                    if (!Equals(entry.BoxedValue, entry.DefaultValue))
+                    {
+                        changed.Add(pair.Key.Key + " = " + Convert.ToString(entry.BoxedValue, CultureInfo.InvariantCulture));
+                    }
+                }
+
+                DarkNightsPlugin.Log.LogInfo(
+                    $"Raid started: {NightDriver.Location}. Dark Nights {DarkNightsPlugin.PluginVersion}, darkness {DarkNightsPlugin.Darkness.Value}. " +
+                    $"Settings changed from default: {(changed.Count == 0 ? "none" : string.Join("; ", changed.ToArray()))}.");
+            }
+            catch (Exception e)
+            {
+                Faults.Report(Faults.Part.Diagnostics, "the log is missing some lines", e);
+            }
+        }
+
         internal static void Write()
+        {
+            try
+            {
+                WriteLine();
+            }
+            catch (Exception e)
+            {
+                Faults.Report(Faults.Part.Diagnostics, "the [night] line is not written", e);
+            }
+        }
+
+        private static void WriteLine()
         {
             NightState s = NightDriver.Get();
             if (!string.IsNullOrEmpty(NightDriver.Idle))
             {
-                DarkNightsPlugin.Log.LogInfo("[night] vanilla: " + NightDriver.Idle);
+                DarkNightsPlugin.Log.LogInfo("[night] vanilla: " + NightDriver.Idle + " | errors " + Faults.Summary());
                 return;
             }
 
@@ -106,7 +150,7 @@ namespace DarkNights.Client
                 "[night] {0} {1} | sun {2:0.0} moon {3:0.0} phase {4:0.00} | cloud {5:0.00} fog {6:0.0000} rain {7:0.00} | NVG {8} | " +
                 "{9} night {10:0.00} -> sky {11} moon {12} interior {13} | {14} | {15} | {16} | " +
                 "interiors {17} ambient / {18} fill, {19}{20}{21} | written by others: light {22}, exposure {23} | reflections {25:0.###} (game {26:0.###}) | " +
-                "flat ambient {27} x{28:0.##} -> x{29:0.00} | sky SH {32:0.####} | bunker {31:0.00}, daylight here {33:0.00} (open sky {34:0.00}) | {35} | {24} | {30}",
+                "flat ambient {27} x{28:0.##} -> x{29:0.00} | sky SH {32:0.####} | bunker {31:0.00}, daylight here {33:0.00} (open sky {34:0.00}) | {35} | {24} | {30} | errors {36}",
                 NightDriver.Location, hour,
                 i.SunElevation, i.MoonElevation, i.MoonPhase,
                 i.Cloudiness, i.Fog, i.Rain,
@@ -123,7 +167,7 @@ namespace DarkNights.Client
                 SainBridge.Report() + CloudSixBridge.Report(),
                 Reflections.LastWritten, Reflections.LastBase,
                 ColorUtility.ToHtmlStringRGB(Patches.FlatAmbientBase), Patches.FlatAmbientIntensity, Patches.FlatAmbientFactor,
-                BotDarkness.Report(), NightDriver.Bunker, Patches.LastSkyStrength, Daylight.Here, Daylight.Openness, Perf.Report()));
+                BotDarkness.Report(), NightDriver.Bunker, Patches.LastSkyStrength, Daylight.Here, Daylight.Openness, Perf.Report(), Faults.Summary()));
         }
 
         /// <summary>The multiplier, or "off" when its part is switched off in the F12 menu.</summary>

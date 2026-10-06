@@ -38,6 +38,8 @@ namespace DarkNights.Client
 
         /// <summary>Changes whenever a different raid's world is up, so caches can be dropped.</summary>
         internal static int WorldGeneration;
+        private static string _excludedFor;
+        private static string _excludedText;
         private static object _lastWorld;
         private static string _lastLocation;
 
@@ -47,11 +49,61 @@ namespace DarkNights.Client
             {
                 _frame = Time.frameCount;
                 long started = Perf.Start();
-                _state = Compute();
+                if (Faults.IsOff(Faults.Part.Night))
+                {
+                    _state = Vanilla("stopped after repeated errors (see the log)");
+                }
+                else
+                {
+                    try
+                    {
+                        _state = Compute();
+                    }
+                    catch (Exception e)
+                    {
+                        // Every part asks for this, many from inside the game's own methods: an
+                        // error here becomes vanilla lighting for the frame, never a throw.
+                        Faults.Report(Faults.Part.Night, "every part is vanilla", e);
+                        _state = Vanilla("error (see the log)");
+                    }
+                }
+
                 Perf.Stop(Perf.Part.Night, started);
+                LogTransitions();
             }
 
             return _state;
+        }
+
+        private static string _loggedIdle;
+        private static string _raidLocation;
+
+        /// <summary>
+        /// One line when a raid starts or ends, and one whenever the mod goes idle or comes
+        /// back -- an excluded map, the A/B key, turned off -- so a log shows which stretches of
+        /// play were darkened at all.
+        /// </summary>
+        private static void LogTransitions()
+        {
+            if (!string.Equals(Location, _raidLocation))
+            {
+                if (_raidLocation != null)
+                {
+                    DarkNightsPlugin.Log.LogInfo($"Raid ended ({_raidLocation}).");
+                }
+
+                _raidLocation = Location;
+                if (Location != null)
+                {
+                    Diagnostics.RaidStarted();
+                }
+            }
+
+            if (!string.Equals(Idle, _loggedIdle))
+            {
+                _loggedIdle = Idle;
+                DarkNightsPlugin.Log.LogInfo(string.IsNullOrEmpty(Idle) ? "Lighting: Dark Nights active." : "Lighting: vanilla -- " + Idle + ".");
+            }
         }
 
         private static NightState Compute()
@@ -85,7 +137,14 @@ namespace DarkNights.Client
 
             if (DarkNightsPlugin.IsExcluded(Location))
             {
-                return Vanilla($"'{Location}' is in Excluded Maps");
+                // Built once per map, not every frame.
+                if (!string.Equals(_excludedFor, Location))
+                {
+                    _excludedFor = Location;
+                    _excludedText = $"'{Location}' is in Excluded Maps";
+                }
+
+                return Vanilla(_excludedText);
             }
 
             object sky = GameTypes.Sky();
@@ -129,8 +188,10 @@ namespace DarkNights.Client
             NightState night = NightModel.Evaluate(input, Settings);
             SkyNightness = night.Nightness;
 
-            // A flagged bunker is sealed outright; anywhere else, sealed by however little sky reaches you.
-            float sealedOff = Mathf.Max(Bunker, 1f - Daylight.Here);
+            // A flagged bunker is sealed outright; anywhere else, sealed by however little sky
+            // reaches you. At night only, unless the player wants dark rooms by day too.
+            float sealedOff = NightModel.RoomDarkness(Mathf.Max(Bunker, 1f - Daylight.Here), night.Nightness,
+                DarkNightsPlugin.DarkRoomsByDay.Value);
             return NightModel.WithBunker(night, Settings, sealedOff, input.NightVisionOn);
         }
 

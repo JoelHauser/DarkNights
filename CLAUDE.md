@@ -339,6 +339,16 @@ so this list is not exhaustive.
 
 ## Rooms without daylight (0.1.7 bunkers, 0.1.8 any room)
 
+**0.1.11 scope decision (the user, 2026-10-06):** dark rooms *by day* are "slightly out of
+scope of Dark Nights ... the job for an illumination overhaul". So room and bunker darkness
+is **night-only by default**: `NightModel.RoomDarkness` multiplies the sealed-off share by
+nightness (fading in with dusk), and the new **`Dark Rooms By Day Too`** (default **off**)
+restores the any-hour behaviour described below. Bots follow the same rule (their target
+probe and bunker check are skipped by day when it is off), and the daylight probe fires no
+rays by day when it is off. Settings renamed: `Dark Rooms` (was "Rooms Without Daylight Are
+Dark"), `Dark Bunkers` (was "Bunkers Dark By Day"). The user's own preference was dark rooms
+at noon -- they will likely turn the option on; do not flip the default.
+
 The user's rule: **a room with no light source and no daylight reaching it is dark, at any
 hour, like real life** -- a windowless second-floor room at noon included. EFT has no
 notion of that: outside an interior volume the sky SH reaches everything.
@@ -405,6 +415,25 @@ know about TWC: the model reads the live sun, moon and `WeatherCurve`, so whatev
 is what Dark Nights darkens. (Its source has not been read; if it ever sets the weather
 somewhere `WeatherCurve` does not return, the log's `cloud fog rain` fields will disagree
 with the sky.)
+
+## Logging and errors (0.1.11)
+
+What a user's `LogOutput.log` holds: at startup the version, the `Features:` line, any
+"Not found in this game build" names, and the SAIN/CloudSix hookup; per raid a `Raid
+started:` line with map, version, preset and **every setting not at its default**, then
+`Lighting: Dark Nights active` / `Lighting: vanilla -- <why>` on every change, the `[night]`
+line every 30 s (ending in `errors`), bunker entry/exit, lamp count, hand-highlight values,
+every F12 change, and `Raid ended`.
+
+**Every entry point catches and reports through `Faults`** -- nothing may throw into the
+game's own methods, where the error would repeat every frame under a trace that never names
+the mod. The first error of each part is logged in full with version, map, preset and sun;
+repeats are counted in the `[night]` line's `errors` field; ten errors turn the part off for
+the session (one-offs during raid teardown stay below that). `NightDriver` falls back to
+vanilla for the frame. Bots, hand glow, SAIN and CloudSix keep their old rule, off on the
+first error (`giveUp`). The cloud and character-highlight SH prefixes are not wrapped: they
+only multiply. **New parts must follow this**: add a `Faults.Part`, catch at the entry
+point, say in the consequence what the player sees while it is off.
 
 ## Still untested
 

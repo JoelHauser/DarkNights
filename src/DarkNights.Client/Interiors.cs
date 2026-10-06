@@ -115,7 +115,8 @@ namespace DarkNights.Client
             }
             catch (Exception e)
             {
-                DarkNightsPlugin.Log.LogError("Interiors: " + e);
+                // Tried again in a minute; turned off if it keeps failing.
+                Faults.Report(Faults.Part.Interiors, "interiors are vanilla", e);
                 _nextSweep = now + 60f;
             }
 

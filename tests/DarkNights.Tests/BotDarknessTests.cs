@@ -115,6 +115,37 @@ public class BotDarknessTests
     }
 
     [Fact]
+    public void ByDefaultASealedRoomIsVanillaByDay()
+    {
+        var s = Presets.For(DarknessLevel.Medium);
+        NightState day = NightState.Vanilla;
+        float sealedOff = NightModel.RoomDarkness(1f, day.Nightness, byDay: false);
+        Assert.Equal(0f, sealedOff);
+        Assert.Equal(day, NightModel.WithBunker(day, s, sealedOff, nightVisionOn: false));
+    }
+
+    [Fact]
+    public void WithDarkRoomsByDayASealedRoomIsDarkAtNoon()
+    {
+        Assert.Equal(1f, NightModel.RoomDarkness(1f, 0f, byDay: true));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AtNightASealedRoomIsDarkEitherWay(bool byDay)
+    {
+        Assert.Equal(1f, NightModel.RoomDarkness(1f, 1f, byDay));
+    }
+
+    [Fact]
+    public void RoomDarknessFadesInWithDusk()
+    {
+        Assert.Equal(0.5f, NightModel.RoomDarkness(1f, 0.5f, byDay: false), 5);
+        Assert.Equal(0.25f, NightModel.RoomDarkness(0.5f, 0.5f, byDay: false), 5);
+    }
+
+    [Fact]
     public void TheCapNeverGoesBelowThePitchBlackRange()
     {
         Assert.Equal(PitchBlack, NightModel.SightCap(0f, PitchBlack));

@@ -324,7 +324,7 @@ namespace DarkNights.Client
             }
 
             _failed = true;
-            DarkNightsPlugin.Log.LogError("Hand glow turned off after an error; hands are vanilla. " + e);
+            Faults.Report(Faults.Part.HandGlow, "the hand glow is vanilla", e, giveUp: true);
         }
     }
 }

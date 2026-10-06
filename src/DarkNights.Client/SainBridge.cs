@@ -132,7 +132,7 @@ namespace DarkNights.Client
             catch (Exception e)
             {
                 _failed = true;
-                DarkNightsPlugin.Log.LogError("SAIN bridge turned off after an error; bots keep SAIN's own night. " + e);
+                Faults.Report(Faults.Part.Sain, "bots keep SAIN's own clock-based night", e, giveUp: true);
             }
         }
 

@@ -190,6 +190,19 @@ namespace DarkNights.Client
         public const float BunkerLevel = 0.01f;
 
         /// <summary>
+        /// How sealed off a place counts as, 0 (open air) to 1 (no daylight reaches it), once
+        /// the time of day is taken into account. A darker room at night is what Dark Nights is
+        /// for, so by default it fades in with dusk and a day is vanilla, indoors and out.
+        /// Dark rooms at noon are a lighting overhaul rather than a darker night, so they are
+        /// the player's choice ("byDay").
+        /// </summary>
+        public static float RoomDarkness(float sealedOff, float nightness, bool byDay)
+        {
+            sealedOff = Clamp01(sealedOff);
+            return byDay ? sealedOff : sealedOff * Clamp01(nightness);
+        }
+
+        /// <summary>
         /// A bunker gets no daylight, so inside one only lamps light it, whatever the hour.
         /// "bunker" is 0 outside, 1 inside, and fades between. Each part only ever gets darker
         /// than the night already made it; moonlight and exposure are left to the night.

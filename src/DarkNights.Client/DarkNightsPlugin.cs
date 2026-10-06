@@ -31,9 +31,12 @@ namespace DarkNights.Client
         public const string PluginName = "Dark Nights";
 
         // Must match <Version> in DarkNights.Client.csproj. pack.ps1 refuses to pack if not.
-        public const string PluginVersion = "0.1.10";
+        public const string PluginVersion = "0.1.11";
 
         internal static ManualLogSource Log;
+
+        /// <summary>The plugin's config file, for the settings snapshot at raid start.</summary>
+        internal static ConfigFile Configuration;
 
         internal static ConfigEntry<bool> Enabled;
         internal static ConfigEntry<DarknessLevel> Darkness;
@@ -47,6 +50,7 @@ namespace DarkNights.Client
         internal static ConfigEntry<bool> DarkenReflections;
         internal static ConfigEntry<bool> DarkBunkers;
         internal static ConfigEntry<bool> DarkWithoutDaylight;
+        internal static ConfigEntry<bool> DarkRoomsByDay;
         internal static ConfigEntry<float> HandGlowAmount;
         internal static ConfigEntry<bool> HandGlowByDay;
 
@@ -79,6 +83,7 @@ namespace DarkNights.Client
         private void Awake()
         {
             Log = Logger;
+            Configuration = Config;
             BindConfig();
             Config.SettingChanged += (_, e) =>
                 Diagnostics.SettingChanged($"{e.ChangedSetting.Definition.Key} = {e.ChangedSetting.BoxedValue}");
@@ -95,20 +100,46 @@ namespace DarkNights.Client
 
         private void Update()
         {
-            Diagnostics.HandleKeys();
+            Run(Faults.Part.Diagnostics, "the diagnostic keys do nothing", HandleKeys);
         }
+
+        // Cached so the per-frame calls below allocate nothing.
+        private static readonly Action HandleKeys = Diagnostics.HandleKeys;
+        private static readonly Action ReflectionsTick = Reflections.Tick;
+        private static readonly Action ExposureTick = EyeAdaptation.Tick;
+        private static readonly Action DaylightTick = Daylight.Tick;
+        private static readonly Action InteriorsTick = Interiors.Tick;
+        private static readonly Action DiagnosticsTick = Diagnostics.Tick;
 
         private void LateUpdate()
         {
             NightDriver.Get();
             long started = Perf.Start();
-            Reflections.Tick();
-            EyeAdaptation.Tick();
+            Run(Faults.Part.Reflections, "reflections are vanilla", ReflectionsTick);
+            Run(Faults.Part.Exposure, "the exposure ceiling is vanilla", ExposureTick);
             Perf.Stop(Perf.Part.Upkeep, started);
 
-            Daylight.Tick();     // timed itself
-            Interiors.Tick();    // timed itself
-            Diagnostics.Tick();
+            Run(Faults.Part.Daylight, "rooms are lit as outdoors", DaylightTick);       // timed itself
+            Run(Faults.Part.Interiors, "interiors are vanilla", InteriorsTick);         // timed itself
+            Run(Faults.Part.Diagnostics, "the [night] line is not written", DiagnosticsTick);
+        }
+
+        /// <summary>One part's per-frame work, so an error in it is reported and the others still run.</summary>
+        private static void Run(Faults.Part part, string consequence, Action tick)
+        {
+            if (Faults.IsOff(part))
+            {
+                return;
+            }
+
+            try
+            {
+                tick();
+            }
+            catch (Exception e)
+            {
+                Faults.Report(part, consequence, e);
+            }
         }
 
         // ------------------------------------------------------------------ config
@@ -133,24 +164,29 @@ namespace DarkNights.Client
 
             DarkenSky = Config.Bind(parts, "Sky Ambient", true,
                 "The light the sky casts on everything, the main part of a dark night. It is also what takes the " +
-                "sky's light out of rooms by day: off, rooms and bunkers keep it and only their interior ambient darkens.");
+                "sky's light out of dark rooms and bunkers: off, they keep it and only their interior ambient darkens.");
             DarkenMoonlight = Config.Bind(parts, "Moonlight", true, "The moon's direct, shadow-casting light.");
             DarkenClouds = Config.Bind(parts, "Clouds", true,
                 "Clouds are lit by the same sky ambient. Without this they glow against a darkened sky.");
             DarkenInteriors = Config.Bind(parts, "Interiors", true,
                 "Daylight carried into buildings by the game's interior ambient. Interiors that are already dark, " +
                 "and every real lamp, are left alone.");
-            DarkWithoutDaylight = Config.Bind(parts, "Rooms Without Daylight Are Dark", true,
-                "At any hour, a place only gets the daylight that can reach it. Dark Nights measures how much open sky " +
-                "is visible from where you stand -- through windows and open doors, not through walls or closed doors. " +
-                "A room is dark at noon, windows or not: it is lit only where the sun's beams fall through them and by " +
-                "its lamps, and the sky's even fill comes back only as you reach a doorway or step outside. No eye " +
-                "adaptation. Bots without a light or NVGs cannot see into such a room either. While you are in a dark " +
-                "room, what you see through its doorway dims with it.");
-            DarkBunkers = Config.Bind(parts, "Bunkers Dark By Day", true,
-                "Areas the map marks as bunkers -- the ones where outside sound goes muffled -- get no daylight, so " +
-                "inside one it is as dark as a moonless overcast night at any hour. Lamps still light them, and bots " +
-                "without a light or NVGs cannot see into them either. Ordinary rooms are not marked and follow the time of day.");
+            DarkWithoutDaylight = Config.Bind(parts, "Dark Rooms", true,
+                "At night a room is dark, lit only by its lamps and whatever light comes in. Dark Nights measures how " +
+                "much open sky is visible from where you stand -- through windows and open doors, not through walls or " +
+                "closed doors -- and the sky's even light comes back only as you reach a doorway or step outside. It " +
+                "fades in with dusk. Bots without a light or NVGs cannot see into such a room either. While you are in " +
+                "a dark room, what you see through its doorway dims with it. No eye adaptation.");
+            DarkBunkers = Config.Bind(parts, "Dark Bunkers", true,
+                "At night, areas the map marks as bunkers -- the ones where outside sound goes muffled -- are as dark " +
+                "as a moonless overcast night, lit only by their lamps. Bots without a light or NVGs cannot see into " +
+                "them either.");
+            DarkRoomsByDay = Config.Bind(parts, "Dark Rooms By Day Too", false,
+                "Off: days are vanilla, indoors and out, and rooms and bunkers only darken at night. On: Dark Rooms " +
+                "and Dark Bunkers apply at noon as well -- a room is lit only where the sun's beams fall through its " +
+                "windows and doors, the rest of it dark, and bots without a light cannot see into it. More a lighting " +
+                "overhaul than a darker night, which is why it is off by default. Overcast days leave windowed rooms " +
+                "close to black.");
             LimitEyeAdaptation = Config.Bind(parts, "Limit Eye Adaptation", true,
                 "Caps how far auto-exposure can brighten a dark night, so the darkness is not adapted straight " +
                 "back away. Lit areas still expose normally. No effect while CloudSix's Disable Eye Adaptation is on " +
@@ -223,9 +259,10 @@ namespace DarkNights.Client
                 "rendered light, so this is what makes them share your night. SAIN keeps its own night strength and " +
                 "weather. No effect without SAIN. Under Fika, the host's setting is the one that counts.");
             DarknessBlindsBots = Config.Bind(bots, "Darkness Blinds Bots", true,
-                "On: a bot with no flashlight and no NVGs on cannot see you in the dark -- in an unlit room, at any " +
-                "hour, only from a few metres; outdoors at night further the brighter the moon. Standing near a lamp, " +
-                "or using your own light, makes you visible as normal. Works with or without SAIN. They can still hear you.");
+                "On: at night a bot with no flashlight and no NVGs on cannot see you in the dark -- in an unlit room " +
+                "only from a few metres, outdoors further the brighter the moon (and in rooms by day too, with Dark " +
+                "Rooms By Day Too). Standing near a lamp, or using your own light, makes you visible as normal. Works " +
+                "with or without SAIN. They can still hear you.");
             PitchBlackSight = Config.Bind(bots, "Pitch Black Sight (m)", 3f,
                 new ConfigDescription("How close a bot without light or NVGs must be to see you in total darkness.",
                     new AcceptableValueRange<float>(1f, 20f)));
