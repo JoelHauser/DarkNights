@@ -27,6 +27,7 @@ namespace DarkNights.Client
         private static readonly Vector3[] Directions = MakeDirections();
         private static readonly bool[] Open = new bool[DirectionCount];
         private static int _next;
+        private static int _openCount = DirectionCount;
         private static int _mask;
         private static int _generation = -1;
 
@@ -46,11 +47,13 @@ namespace DarkNights.Client
                     Open[i] = true;
                 }
 
+                _openCount = DirectionCount;
                 Openness = 1f;
                 Here = 1f;
             }
 
-            if (!DarkNightsPlugin.DarkWithoutDaylight.Value || NightDriver.Location == null)
+            // Off, suspended by the A/B key, or on an excluded map: no rays.
+            if (!DarkNightsPlugin.DarkWithoutDaylight.Value || NightDriver.Location == null || !string.IsNullOrEmpty(NightDriver.Idle))
             {
                 Here = 1f;
                 return;
@@ -66,22 +69,19 @@ namespace DarkNights.Client
             Vector3 origin = camera.transform.position;
             for (int n = 0; n < RaysPerFrame; n++)
             {
-                Open[_next] = Escapes(origin, Directions[_next]);
+                bool open = Escapes(origin, Directions[_next]);
+                if (open != Open[_next])
+                {
+                    _openCount += open ? 1 : -1;
+                    Open[_next] = open;
+                }
+
                 _next = (_next + 1) % DirectionCount;
             }
 
             Perf.Stop(Perf.Part.Daylight, started);
 
-            int open = 0;
-            foreach (bool o in Open)
-            {
-                if (o)
-                {
-                    open++;
-                }
-            }
-
-            Openness = open / (float)DirectionCount;
+            Openness = _openCount / (float)DirectionCount;
             Here = Mathf.MoveTowards(Here, NightModel.DaylightFromOpenness(Openness), Time.unscaledDeltaTime / FadeSeconds);
         }
 

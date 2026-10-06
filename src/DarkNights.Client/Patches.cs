@@ -17,12 +17,16 @@ namespace DarkNights.Client
         /// </summary>
         internal static void SkyAmbientPrefix(object __instance, ref SphericalHarmonicsL2 __0)
         {
+            NightState night = NightDriver.Get();
+            long started = Perf.Start();
             Reflections.Seen(__instance as Object);
             LastSkyStrength = 0.2126f * __0[0, 0] + 0.7152f * __0[1, 0] + 0.0722f * __0[2, 0];
             if (DarkNightsPlugin.DarkenSky.Value)
             {
-                Scale(ref __0, NightDriver.Get().Ambient);
+                Scale(ref __0, night.Ambient);
             }
+
+            Perf.Stop(Perf.Part.Hooks, started);
         }
 
         /// <summary>
@@ -47,14 +51,23 @@ namespace DarkNights.Client
         /// </summary>
         internal static void FlatAmbientPostfix(object __instance)
         {
+            float f = NightDriver.Get().Ambient;
+            long started = Perf.Start();
+            ScaleFlatAmbient(__instance, f);
+            Perf.Stop(Perf.Part.Hooks, started);
+        }
+
+        private static void ScaleFlatAmbient(object levelSettings, float f)
+        {
+            // Runs before every camera renders: compared as the enum value, not by name --
+            // Enum.ToString is slow and allocates a string each call.
             if (!DarkNightsPlugin.DarkenSky.Value
-                || GameTypes.LevelSettings_AmbientType.GetValue(__instance, null)?.ToString() == "NightVision")
+                || Equals(GameTypes.LevelSettings_AmbientType.GetValue(levelSettings, null), GameTypes.LevelSettings_NightVisionAmbient))
             {
                 FlatAmbientFactor = 1f;
                 return;
             }
 
-            float f = NightDriver.Get().Ambient;
             FlatAmbientBase = RenderSettings.ambientLight;
             FlatAmbientIntensity = RenderSettings.ambientIntensity;
             FlatAmbientFactor = f;
@@ -75,10 +88,14 @@ namespace DarkNights.Client
         /// </summary>
         internal static void HighlightPrefix(ref SphericalHarmonicsL2 __0)
         {
+            float f = NightDriver.Get().Ambient;
+            long started = Perf.Start();
             if (DarkNightsPlugin.DarkenSky.Value)
             {
-                Scale(ref __0, NightDriver.Get().Ambient);
+                Scale(ref __0, f);
             }
+
+            Perf.Stop(Perf.Part.Hooks, started);
         }
 
         /// <summary>
@@ -87,10 +104,14 @@ namespace DarkNights.Client
         /// </summary>
         internal static void CloudsPrefix(ref SphericalHarmonicsL2 __0)
         {
+            float f = NightDriver.Get().Ambient;
+            long started = Perf.Start();
             if (DarkNightsPlugin.DarkenClouds.Value)
             {
-                Scale(ref __0, NightDriver.Get().Ambient);
+                Scale(ref __0, f);
             }
+
+            Perf.Stop(Perf.Part.Hooks, started);
         }
 
         private static Light _light;
@@ -103,20 +124,22 @@ namespace DarkNights.Client
         /// </summary>
         internal static void MoonlightPostfix(object __instance)
         {
+            NightState night = NightDriver.Get();
+            long started = Perf.Start();
             Light light = GameTypes.SkyLight(__instance);
-            if (light == null)
+            if (light != null)
             {
-                return;
+                if (!ReferenceEquals(light, _light))
+                {
+                    _light = light;
+                    _moonlight = new Tracked();
+                }
+
+                float factor = DarkNightsPlugin.DarkenMoonlight.Value ? night.Moonlight : 1f;
+                light.intensity = _moonlight.Apply(light.intensity, factor);
             }
 
-            if (!ReferenceEquals(light, _light))
-            {
-                _light = light;
-                _moonlight = new Tracked();
-            }
-
-            float factor = DarkNightsPlugin.DarkenMoonlight.Value ? NightDriver.Get().Moonlight : 1f;
-            light.intensity = _moonlight.Apply(light.intensity, factor);
+            Perf.Stop(Perf.Part.Hooks, started);
         }
 
         internal static Tracked MoonlightTracking => _moonlight;

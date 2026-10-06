@@ -37,8 +37,8 @@ namespace DarkNights.Client
     {
         internal const string CloudSixGuid = "com.matsix.cloudsix";
         private const string RendererType = "CloudSix.Source.VolCloudRenderer";
-        private const string MoonIntensity = "_MoonIntensity";
-        private const string AmbientStrength = "_AmbientStrength";
+        private static readonly int MoonIntensity = Shader.PropertyToID("_MoonIntensity");
+        private static readonly int AmbientStrength = Shader.PropertyToID("_AmbientStrength");
 
         private static FieldInfo _material;
         private static Material _current;
@@ -90,6 +90,8 @@ namespace DarkNights.Client
                 return;
             }
 
+            NightState state = NightDriver.Get();
+            long started = Perf.Start();
             try
             {
                 var material = _material.GetValue(null) as Material;
@@ -105,7 +107,6 @@ namespace DarkNights.Client
                     _ambient = new Tracked();
                 }
 
-                NightState state = NightDriver.Get();
                 bool on = DarkNightsPlugin.DarkenClouds.Value;
                 Scale(material, MoonIntensity, _moon, on ? state.Moonlight : 1f);
                 Scale(material, AmbientStrength, _ambient, on ? state.Ambient : 1f);
@@ -115,9 +116,13 @@ namespace DarkNights.Client
                 _failed = true;
                 DarkNightsPlugin.Log.LogError("CloudSix bridge turned off after an error; its clouds keep their own brightness. " + e);
             }
+            finally
+            {
+                Perf.Stop(Perf.Part.Hooks, started);
+            }
         }
 
-        private static void Scale(Material material, string property, Tracked tracked, float factor)
+        private static void Scale(Material material, int property, Tracked tracked, float factor)
         {
             if (!material.HasProperty(property))
             {

@@ -26,6 +26,22 @@ namespace DarkNights.Client
             public float Value;
         }
 
+        /// <summary>A bot, as of its last refresh: whether it sees in the dark, and its own sight range.</summary>
+        private struct BotState
+        {
+            public float Until;
+            public bool SeesInTheDark;
+            public float VisibleDist;
+        }
+
+        /// <summary>A target, as of its last refresh: its own light on, and how lit it is where it stands.</summary>
+        private struct TargetState
+        {
+            public float Until;
+            public bool UsingLight;
+            public float Light;
+        }
+
         private const float TargetRefresh = 0.25f;
         private const float BotRefresh = 0.5f;
 
@@ -43,8 +59,8 @@ namespace DarkNights.Client
         }
 
         private static readonly List<Lamp> Lamps = new List<Lamp>();
-        private static readonly Dictionary<object, Cached> TargetLights = new Dictionary<object, Cached>();
-        private static readonly Dictionary<object, Cached> BotSight = new Dictionary<object, Cached>();
+        private static readonly Dictionary<object, TargetState> Targets = new Dictionary<object, TargetState>();
+        private static readonly Dictionary<object, BotState> Bots = new Dictionary<object, BotState>();
         private static readonly Dictionary<object, Cached> TargetDaylights = new Dictionary<object, Cached>();
         private const float DaylightRefresh = 2f;
         private static int _generation = -1;
@@ -71,38 +87,47 @@ namespace DarkNights.Client
                 return;
             }
 
-            long started = Perf.Start();
+            long started = 0;
             try
             {
                 NightDriver.Get();
+                started = Perf.Start();
                 if (!string.IsNullOrEmpty(NightDriver.Idle))
                 {
                     return;
                 }
 
+                // SAIN calls this on every line-of-sight check, thousands of times a second, so
+                // everything read off the bot and the target is cached and refreshed on a timer:
+                // a typical call is two reference reads and two dictionary hits, and boxes nothing.
                 Reset();
+                float now = Time.time;
                 object owner = GameTypes.EnemyInfo_Owner.GetValue(__instance, null);
                 object person = GameTypes.EnemyInfo_Person.GetValue(__instance, null);
-                if (owner == null || person == null || BotSeesInTheDark(owner))
+                if (owner == null || person == null)
                 {
                     return;
                 }
 
-                object ai = GameTypes.IPlayer_AIData.GetValue(person, null);
-                if (ai == null || (bool)GameTypes.AIData_UsingLight.GetValue(ai, null))
+                BotState bot = Bot(owner, now);
+                if (bot.SeesInTheDark)
                 {
                     return;
                 }
 
-                float cap = NightModel.SightCap(TargetLight(person, ai), DarkNightsPlugin.PitchBlackSight.Value);
+                TargetState target = Target(person, now);
+                if (target.UsingLight)
+                {
+                    return;
+                }
+
+                float cap = NightModel.SightCap(target.Light, DarkNightsPlugin.PitchBlackSight.Value);
                 if (float.IsPositiveInfinity(cap))
                 {
                     return;
                 }
 
-                object look = GameTypes.BotOwner_LookSensor.GetValue(owner, null);
-                float visible = look == null ? 0f : (float)GameTypes.LookSensor_VisibleDist.GetValue(look, null);
-                float limit = cap - visible;
+                float limit = cap - bot.VisibleDist;
                 if (__result > limit)
                 {
                     __result = limit;
@@ -116,7 +141,10 @@ namespace DarkNights.Client
             }
             finally
             {
-                Perf.Stop(Perf.Part.Bots, started);
+                if (started != 0)
+                {
+                    Perf.Stop(Perf.Part.Bots, started);
+                }
             }
         }
 
@@ -129,37 +157,55 @@ namespace DarkNights.Client
 
             _generation = NightDriver.WorldGeneration;
             Lamps.Clear();
-            TargetLights.Clear();
-            BotSight.Clear();
+            Targets.Clear();
+            Bots.Clear();
             TargetDaylights.Clear();
             _lampsFound = false;
             CappedCalls = 0;
         }
 
-        private static bool BotSeesInTheDark(object owner)
+        /// <summary>
+        /// The bot's NVGs or flashlight, and its sight range (which vanilla recomputes every 10 s
+        /// and SAIN every few), refreshed every BotRefresh.
+        /// </summary>
+        private static BotState Bot(object owner, float now)
         {
-            float now = Time.time;
-            if (BotSight.TryGetValue(owner, out Cached c) && c.Until > now)
+            if (Bots.TryGetValue(owner, out BotState b) && b.Until > now)
             {
-                return c.Value > 0f;
+                return b;
             }
 
             object goggles = GameTypes.BotOwner_NightVision.GetValue(owner, null);
             object light = GameTypes.BotOwner_BotLight.GetValue(owner, null);
-            bool sees = (goggles != null && (bool)GameTypes.NightVisionData_UsingNow.GetValue(goggles, null))
-                        || (light != null && (bool)GameTypes.BotLight_IsEnable.GetValue(light, null));
-            BotSight[owner] = new Cached { Until = now + BotRefresh, Value = sees ? 1f : 0f };
-            return sees;
+            b.SeesInTheDark = (goggles != null && (bool)GameTypes.NightVisionData_UsingNow.GetValue(goggles, null))
+                              || (light != null && (bool)GameTypes.BotLight_IsEnable.GetValue(light, null));
+            object look = b.SeesInTheDark ? null : GameTypes.BotOwner_LookSensor.GetValue(owner, null);
+            b.VisibleDist = look == null ? 0f : (float)GameTypes.LookSensor_VisibleDist.GetValue(look, null);
+            b.Until = now + BotRefresh;
+            Bots[owner] = b;
+            return b;
         }
 
-        private static float TargetLight(object person, object ai)
+        /// <summary>The target's own light, and how lit it is where it stands, refreshed every TargetRefresh.</summary>
+        private static TargetState Target(object person, float now)
         {
-            float now = Time.time;
-            if (TargetLights.TryGetValue(person, out Cached c) && c.Until > now)
+            if (Targets.TryGetValue(person, out TargetState t) && t.Until > now)
             {
-                return c.Value;
+                return t;
             }
 
+            object ai = GameTypes.IPlayer_AIData.GetValue(person, null);
+
+            // No AI data: nothing to judge by, so it is treated like a lit target and never capped.
+            t.UsingLight = ai == null || (bool)GameTypes.AIData_UsingLight.GetValue(ai, null);
+            t.Light = t.UsingLight ? 1f : TargetLight(person, ai, now);
+            t.Until = now + TargetRefresh;
+            Targets[person] = t;
+            return t;
+        }
+
+        private static float TargetLight(object person, object ai, float now)
+        {
             if (_skyFrame != Time.frameCount)
             {
                 _skyFrame = Time.frameCount;
@@ -180,7 +226,6 @@ namespace DarkNights.Client
             {
                 value = NightModel.TargetLight(_skyVisibility, daylight, LampLight(position + Vector3.up));
             }
-            TargetLights[person] = new Cached { Until = now + TargetRefresh, Value = value };
 
             if (GameTypes.IPlayer_IsYourPlayer != null && (bool)GameTypes.IPlayer_IsYourPlayer.GetValue(person, null))
             {

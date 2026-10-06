@@ -105,6 +105,7 @@ namespace DarkNights.Client
 
         internal static MethodInfo LevelSettings_OnPreCull;     // OnPreCullCallback(Camera): writes RenderSettings.ambient*
         internal static PropertyInfo LevelSettings_AmbientType; // Default or NightVision
+        internal static object LevelSettings_NightVisionAmbient; // that enum's NightVision value, boxed once
 
         // ---------------------------------------------------------------- bunkers
 
@@ -129,22 +130,6 @@ namespace DarkNights.Client
         internal static PropertyInfo AIData_IsInside;
         internal static PropertyInfo AIData_UsingLight;
 
-        // ------------------------------------------------- test conditions (F12)
-
-        internal static FieldInfo WeatherController_Debug;      // WeatherDebug WeatherDebug
-        internal static FieldInfo WeatherDebug_Enabled;         // isEnabled: WeatherCurve returns the debug values
-        internal static FieldInfo WeatherDebug_Cloud;           // CloudDensity, -1..1
-        internal static FieldInfo WeatherDebug_Fog;             // Fog, 0.001..0.255
-        internal static FieldInfo WeatherDebug_Rain;            // Rain, 0..1
-        internal static FieldInfo TODSkyProvider_Instance;      // static ITODSky Instance
-        internal static PropertyInfo TODSky_CurrentTime;        // ITODSky.CurrentTime (TOD_Time)
-        internal static FieldInfo TODTime_GameDateTime;         // the clock the sky is drawn from
-        internal static FieldInfo GameWorld_GameDateTime;       // the raid's clock (bots, SAIN)
-        internal static FieldInfo GameDateTime_TimeFactorMod;   // 0 stops the clock
-        internal static PropertyInfo GameDateTime_TimeFactor;
-        internal static MethodInfo GameDateTime_Calculate;
-        internal static MethodInfo GameDateTime_Reset;          // Reset(real, game, factor, force)
-
         // ------------------------------------------------------------ what works
 
         internal static bool SkyReady;
@@ -164,8 +149,6 @@ namespace DarkNights.Client
         internal static bool BotDarknessReady;
         internal static bool BunkerReady;
         internal static bool BunkerAtReady;
-        internal static bool TestWeatherReady;
-        internal static bool TestClockReady;
 
         private static readonly List<string> Missing = new List<string>();
 
@@ -266,6 +249,8 @@ namespace DarkNights.Client
             Type levelSettings = Find("LevelSettings");
             LevelSettings_OnPreCull = Method(levelSettings, "OnPreCullCallback", new[] { typeof(Camera) });
             LevelSettings_AmbientType = Prop(levelSettings, "AmbientType");
+            LevelSettings_NightVisionAmbient = EnumValue(LevelSettings_AmbientType?.PropertyType, "NightVision");
+            // Without the NightVision value the goggles' own ambient gets scaled too; not worth turning the part off for.
             FlatAmbientReady = SkyReady && All(LevelSettings_OnPreCull, LevelSettings_AmbientType);
 
             EnvironmentManager_InBunker = Prop(environment, "InBunker");
@@ -296,26 +281,6 @@ namespace DarkNights.Client
                 BotOwner_LookSensor, BotOwner_NightVision, BotOwner_BotLight, LookSensor_VisibleDist, NightVisionData_UsingNow,
                 BotLight_IsEnable, IPlayer_AIData, IPlayer_Position, AIData_IsInside, AIData_UsingLight);
 
-            WeatherController_Debug = Field(WeatherController, "WeatherDebug");
-            Type weatherDebug = WeatherController_Debug?.FieldType;
-            WeatherDebug_Enabled = Field(weatherDebug, "isEnabled");
-            WeatherDebug_Cloud = Field(weatherDebug, "CloudDensity");
-            WeatherDebug_Fog = Field(weatherDebug, "Fog");
-            WeatherDebug_Rain = Field(weatherDebug, "Rain");
-            TestWeatherReady = All(WeatherController_Instance, WeatherDebug_Enabled, WeatherDebug_Cloud, WeatherDebug_Fog, WeatherDebug_Rain);
-
-            TODSkyProvider_Instance = Field(Find("TODSkyProvider"), "Instance");
-            TODSky_CurrentTime = Prop(TODSkyProvider_Instance?.FieldType, "CurrentTime");
-            TODTime_GameDateTime = Field(TODSky_CurrentTime?.PropertyType, "GameDateTime");
-            GameWorld_GameDateTime = Field(gameWorld, "GameDateTime");
-            Type clock = Find("EFT.GameDateTime");
-            GameDateTime_TimeFactorMod = Field(clock, "TimeFactorMod");
-            GameDateTime_TimeFactor = Prop(clock, "TimeFactor");
-            GameDateTime_Calculate = Method(clock, "Calculate", Type.EmptyTypes);
-            GameDateTime_Reset = Method(clock, "Reset", new[] { typeof(DateTime), typeof(DateTime), typeof(float), typeof(bool) });
-            TestClockReady = All(TODSkyProvider_Instance, TODSky_CurrentTime, TODTime_GameDateTime, GameDateTime_TimeFactorMod,
-                                 GameDateTime_TimeFactor, GameDateTime_Calculate, GameDateTime_Reset);
-
             if (Missing.Count > 0)
             {
                 log.LogWarning("Not found in this game build: " + string.Join(", ", Missing.ToArray()));
@@ -325,8 +290,7 @@ namespace DarkNights.Client
                 $"Features: sky {On(SkyReady)}, weather {On(WeatherReady)}, ambient {On(AmbientReady)}, " +
                 $"highlight {On(HighlightReady)}, hand glow {On(HandGlowReady)}, reflections {On(ReflectionsReady)}, clouds {On(CloudsReady)},moonlight {On(MoonlightReady)}, " +
                 $"interiors {On(InteriorsReady)}, exposure {On(ExposureReady)}, night vision {On(NightVisionReady)}, " +
-                $"raid {On(WorldReady)}, indoor/outdoor {On(EnvironmentReady)}, flat ambient {On(FlatAmbientReady)}, bots in the dark {On(BotDarknessReady)}, bunkers {On(BunkerReady)}, " +
-                $"test weather {On(TestWeatherReady)}, test clock {On(TestClockReady)}");
+                $"raid {On(WorldReady)}, indoor/outdoor {On(EnvironmentReady)}, flat ambient {On(FlatAmbientReady)}, bots in the dark {On(BotDarknessReady)}, bunkers {On(BunkerReady)}");
         }
 
         // ------------------------------------------------------------- readers
@@ -443,6 +407,22 @@ namespace DarkNights.Client
                 Missing.Add(t.Name + "." + name);
             }
             return m;
+        }
+
+        private static object EnumValue(Type t, string name)
+        {
+            if (t == null)
+            {
+                return null;
+            }
+
+            if (t.IsEnum && Enum.IsDefined(t, name))
+            {
+                return Enum.Parse(t, name);
+            }
+
+            Missing.Add(t.Name + "." + name);
+            return null;
         }
 
         /// <summary>

@@ -49,6 +49,7 @@ namespace DarkNights.Client
         private static float _appliedAmbient = 1f;
         private static float _appliedFill = 1f;
         private static float _appliedRange = 1f;
+        private static float _appliedFloor = float.NaN;
 
         /// <summary>Diagnostic: fill light off entirely, to see whether the bubble goes with it.</summary>
         internal static bool FillLightsOff;
@@ -81,8 +82,19 @@ namespace DarkNights.Client
             float ambient = DarkNightsPlugin.DarkenInteriors.Value ? state.Interior : 1f;
             float fill = FillLightsOff ? 0f : ambient;
 
-            bool changed = Moved(ambient, _appliedAmbient) || Moved(fill, _appliedFill) || RangeMultiplier != _appliedRange;
+            float floor = DarkNightsPlugin.InteriorFloor.Value;
+            bool changed = Moved(ambient, _appliedAmbient) || Moved(fill, _appliedFill) || RangeMultiplier != _appliedRange
+                           || floor != _appliedFloor;
             float now = Time.unscaledTime;
+
+            // Vanilla wanted and nothing of ours in any volume -- day, outdoors, which is most of
+            // play: the 5-second sweep would only read every volume to change none of them.
+            if (ambient >= 1f && fill >= 1f && RangeMultiplier == 1f && Ambients.Count == 0 && Fills.Count == 0 && Ranges.Count == 0)
+            {
+                _appliedAmbient = _appliedFill = _appliedRange = 1f;
+                return;
+            }
+
             if ((!changed || now < _nextChangePass) && now < _nextSweep)
             {
                 return;
@@ -97,7 +109,7 @@ namespace DarkNights.Client
             long started = Perf.Start();
             try
             {
-                ApplyAmbient(ambient, DarkNightsPlugin.InteriorFloor.Value);
+                ApplyAmbient(ambient, floor);
                 ApplyFill(fill);
                 ApplyRange(RangeMultiplier);
             }
@@ -112,6 +124,7 @@ namespace DarkNights.Client
             _appliedAmbient = ambient;
             _appliedFill = fill;
             _appliedRange = RangeMultiplier;
+            _appliedFloor = floor;
         }
 
         /// <summary>

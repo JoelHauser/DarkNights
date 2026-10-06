@@ -25,8 +25,28 @@ namespace DarkNights.Client
         private static float _nextScan;
         private static int _generation = -1;
 
+        // The first camera's state, kept as numbers and formatted only when the log asks.
+        private static UnityEngine.Object _reported;
+        private static bool _adapting;
+        private static float _lower;
+        private static float _baseUpper;
+        private static float _upper;
+
         /// <summary>For the log: the first camera's state.</summary>
-        internal static string Report = "not seen";
+        internal static string Report
+        {
+            get
+            {
+                if (_reported == null)
+                {
+                    return "no PrismEffects in the scene";
+                }
+
+                string grey = GameTypes.Prism_MiddleGrey == null ? "?" : ((float)GameTypes.Prism_MiddleGrey.GetValue(_reported)).ToString("0.###");
+                return $"auto-exposure {(_adapting ? "on" : "OFF")}, limits {_lower:0.##} to {_baseUpper:0.##}" +
+                       (_upper != _baseUpper ? $" (night ceiling {_upper:0.##})" : string.Empty) + $", grey {grey}";
+            }
+        }
 
         internal static int OtherWrites
         {
@@ -65,7 +85,7 @@ namespace DarkNights.Client
             float blend = DarkNightsPlugin.LimitEyeAdaptation.Value ? state.Exposure : 0f;
             float ceiling = NightDriver.Settings.ExposureCeiling;
 
-            string report = null;
+            _reported = null;
             foreach (UnityEngine.Object prism in _prisms)
             {
                 if (prism == null)
@@ -73,40 +93,36 @@ namespace DarkNights.Client
                     continue;
                 }
 
-                bool adapting = (bool)GameTypes.Prism_UseExposure.GetValue(prism);
                 var lower = (float)GameTypes.Prism_LowerLimit.GetValue(prism);
                 var upper = (float)GameTypes.Prism_UpperLimit.GetValue(prism);
+                float baseUpper = upper;
+                float next = upper;
 
-                if (!Limits.TryGetValue(prism, out Tracked tracked))
+                if (Limits.TryGetValue(prism, out Tracked tracked) || blend > 0f)
                 {
-                    if (blend <= 0f)
+                    if (tracked == null)
                     {
-                        report = report ?? Describe(prism, adapting, lower, upper, upper);
-                        continue;
+                        tracked = new Tracked();
+                        Limits.Add(prism, tracked);
                     }
 
-                    tracked = new Tracked();
-                    Limits.Add(prism, tracked);
+                    baseUpper = tracked.Adopt(upper);
+                    next = tracked.Write(NightModel.ExposureCeiling(baseUpper, Mathf.Max(ceiling, lower), blend));
+                    if (next != upper)
+                    {
+                        GameTypes.Prism_UpperLimit.SetValue(prism, next);
+                    }
                 }
 
-                float floor = lower;
-                float next = tracked.Apply(upper, b => NightModel.ExposureCeiling(b, Mathf.Max(ceiling, floor), blend));
-                if (next != upper)
+                if (_reported == null)
                 {
-                    GameTypes.Prism_UpperLimit.SetValue(prism, next);
+                    _reported = prism;
+                    _adapting = (bool)GameTypes.Prism_UseExposure.GetValue(prism);
+                    _lower = lower;
+                    _baseUpper = baseUpper;
+                    _upper = next;
                 }
-
-                report = report ?? Describe(prism, adapting, lower, tracked.Base, next);
             }
-
-            Report = report ?? "no PrismEffects in the scene";
-        }
-
-        private static string Describe(UnityEngine.Object prism, bool adapting, float lower, float baseUpper, float upper)
-        {
-            string grey = GameTypes.Prism_MiddleGrey == null ? "?" : ((float)GameTypes.Prism_MiddleGrey.GetValue(prism)).ToString("0.###");
-            return $"auto-exposure {(adapting ? "on" : "OFF")}, limits {lower:0.##} to {baseUpper:0.##}" +
-                   (upper != baseUpper ? $" (night ceiling {upper:0.##})" : string.Empty) + $", grey {grey}";
         }
     }
 }

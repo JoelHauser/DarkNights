@@ -11,8 +11,9 @@ It is not a slider and not a shader over the image. The whole world dims as one 
 Lighthouse, Reserve). 0.1.0 was built that morning from static analysis alone; everything
 after it was driven by what the live logs and the user's screenshots showed -- see
 *What the game showed* below. The presets were lowered once after play (0.1.4) and are
-still a first ladder, not tuned values. **One design decision is open: eye adaptation**
-(see that section) -- do not tune the daylight curve until the user has chosen.
+still a first ladder, not tuned values. **0.1.10 (2026-10-06, built, not yet run):** the
+user ruled out eye adaptation, and rooms are dark by day windows or not -- see *Rooms
+without daylight*.
 
 ## The boxes
 
@@ -117,7 +118,8 @@ Read with ilspycmd from `C:\HUH\EscapeFromTarkov_Data\Managed\Assembly-CSharp.dl
   `AIData.UsingLight`). SAIN postfixes the same method to add its per-enemy distance.
   `BotOwner.NightVision.UsingNow` and `BotOwner.BotLight.IsEnable` say whether the bot has
   goggles or its light on; `AIData.IsInside` is `EnvironmentId > 0`.
-- **The clock and the weather can be set from a mod.** `TODSkyProvider.Instance.CurrentTime
+- **The clock and the weather can be set from a mod** (what 0.1.3-0.1.9's F12 test
+  conditions used; removed in 0.1.10). `TODSkyProvider.Instance.CurrentTime
   .GameDateTime` is the clock the sky is drawn from (`GameWorld.GameDateTime` may be the
   same object); `Reset(real, game, factor, force: true)` moves it and `TimeFactorMod = 0`
   stops it. `WeatherController.WeatherCurve` returns `WeatherDebug` (cloud, fog, rain...)
@@ -189,6 +191,38 @@ every part. `NightDriver.SkyNightness` is the sun-only nightness, for bots.
   ~1 ms/s -- under 1% of frame time; longest single runs 2.4 ms (an interior pass) and
   5.7 ms once (the first bot check after the lamp search). The `perf` field of the
   `[night]` line reports this every time.
+- **Performance pass (0.1.10, static, not yet measured in game).** The CPU was already small;
+  the target was per-frame garbage, which under Mono turns into GC hitches. Removed: a
+  string built every frame to detect a new raid (`NightDriver`, now a reference compare);
+  `Enum.ToString()` before every camera render (flat ambient, now compared to the enum value
+  resolved once in `GameTypes`); the exposure log text formatted every frame and a closure
+  per frame (`Tracked` now has `Adopt`/`Write` instead of a `Func` overload); `float[]` per
+  camera in `HandGlow`; string-named material lookups in `CloudSixBridge`. **Bots:** SAIN
+  calls the postfix on every line-of-sight check, and each call did five reflection reads
+  and two boxings; the bot's NVG/light/`VisibleDist` and the target's `UsingLight`/light
+  are now cached (0.5 s / 0.25 s), so a typical call is two reads and two dictionary hits.
+  Interiors skip the 5 s sweep entirely when nothing is wanted and nothing is ours (day,
+  outdoors); the daylight probe keeps a running count and fires no rays when the mod is off,
+  suspended or on an excluded map. **`perf` now covers everything**: `night` (the frame's
+  computation), `hooks` (every render-path patch), `upkeep` (reflections, exposure, test
+  conditions) plus daylight, interiors and bots. Each caller gets the frame's night before
+  starting its timer, so the parts do not overlap. Remaining reflection boxing (about ten
+  small values a frame in `NightDriver`) would need emitted getters; not worth it unless
+  the log or ORBIT's GC counts say otherwise.
+
+## The F12 menu -- audited 2026-10-06 (static, from code)
+
+Every entry is read, and every one acts live (settings are read per frame or per refresh).
+Fixed in 0.1.10: **Dusk Starts / Night Complete** overlap (-6 to -3) and, crossed, ran the
+curve backwards -- full night at noon; the end is now clamped 1 degree below the start.
+**Custom Full Moon** below Moonless made the rising moon darken the night; clamped.
+**Interior Floor** waited up to 5 s for the next sweep; now triggers a pass. Descriptions
+corrected for Sky Ambient (it is also what darkens rooms by day), Limit Eye Adaptation (no
+effect under CloudSix's lock), Hand Glow (HDR only) and Darkness Blinds Bots (rooms at any
+hour, not only at night). By design and described: the Custom section only acts on Custom,
+the weather sliders only at night in that weather, Night Vision Keeps Vanilla only with
+NVGs, Reflections nothing with SSR on, Bots Share The Night nothing without SAIN. Section 7
+(test conditions) was removed the same day -- see *Setting the time and weather for a test*.
 
 ## The hand glow, and the weapon
 
@@ -316,27 +350,31 @@ notion of that: outside an interior volume the sky SH reaches everything.
   `NightDriver` feeds `max(bunker, 1 - Here)` into `WithBunker`.
 - **Bunkers** (`Bunkers Dark By Day`): `EnvironmentManager.InBunker` counts as fully
   sealed, with `Bunker: entered/left` in the log.
-- **Known problem (0.1.9 log, Reserve by day):** one escaping ray is 1% open sky, which the
-  sqrt curve turns into daylight 0.23 -- 24x the ambient of a sealed room. Rays through
-  cracks open and close as you move, so the room **pulses**. The user called it "eye
-  adaptation super wonky". Fix waits on the decision below.
+- **0.1.10: a room is dark, windows or not.** The user's reference was two photos: a sun
+  patch on the floor and a beam through a doorway, with everything else in the room black.
+  So the sky's even fill (SH ambient, flat ambient, interior volumes) is **zero up to
+  `RoomOpenness` 0.12** and returns on a smoothstep to `OutdoorOpenness` 0.3 (doorway,
+  porch, alley, street). The light that *should* be in the room -- the sun's shadowed
+  beams and lamps -- is the game's own and untouched by day. Replaced 0.1.9's
+  `sqrt(openness / 0.2)`, where one ray through a crack (1%) gave daylight 0.23 and rooms
+  **pulsed** as rays flickered; inside the room range they now change nothing.
+  Both thresholds are guesses from geometry, not measurements -- the `open sky` field of
+  the `[night]` line is the number to tune them by (stand in a windowed room, a doorway,
+  an alley). Bots share the curve, so a windowed room hides you from a bot with no light
+  just as a sealed one does.
+- **Known gaps:** on an overcast day there are no beams, so a windowed room is close to
+  black (real ones are dim but readable near the window); and the 0.75 s fade through a
+  doorway changes the whole frame's ambient at once.
 - **Trade-off, accepted for now:** the ambient is one value for the whole frame, so from a
   dark room the yard through the doorway dims too. No light bounce: a room opening only
   onto an unlit hallway reads as sealed.
 
-## Eye adaptation -- OPEN, the user has to choose
+## Eye adaptation -- DECIDED 2026-10-06: none
 
-Real rooms with windows get ~2-5% of outdoor light and look fine because eyes adapt over
-seconds. The user's game has **no** adaptation (CloudSix pins exposure). Physically right
-light without adaptation makes every windowed room near-black at noon. Offered on
-2026-10-05, no answer yet:
-
-1. **Realistic light + real adaptation**: turn off CloudSix's exposure lock and let Prism's
-   auto-exposure (with EFT's per-`IndoorTrigger` exposure offsets) run; rooms read black on
-   entry and resolve, outdoors blooms then settles. Changes CloudSix's look, and CloudSix is
-   the one mod the user requires.
-2. **Steadier, not realistic**: a dead zone so 1-2 rays count as sealed, a gentler curve so
-   windowed rooms keep a comfortable share, no adaptation. CloudSix untouched.
+The user does not want it: "I don't want my characters' eyes adapting -- it doesn't look
+good either." CloudSix's exposure lock stays on, and **do not offer auto-exposure again**.
+Windowed rooms near-black at noon is the intended look, not a side effect (see above).
+`Limit Eye Adaptation` stays for players who turn CloudSix's lock off.
 
 ## Bots in the dark (0.1.6, daylight-aware since 0.1.8)
 
@@ -358,11 +396,15 @@ walked right past them in a dark corner, "really cool"). `BotDarkness.cs` postfi
   after SAIN's postfix on the same method, so the sum it returns is capped, but nothing has
   verified a bot actually losing a target in the dark.
 
-## Test conditions (F12 section 7, 0.1.3)
+## Setting the time and weather for a test
 
-`Freeze Time` + `Freeze At Hour` hold the clock (sky and bots); `Override Weather` + Cloud /
-Fog / Rain replace the forecast live. Both resolved "on" in the user's game; the freeze
-has not been seen in a log yet (`Test: clock frozen at`).
+**Time & Weather Changer NG** (sp-mod.com/mod/2120), which the user runs. 0.1.3-0.1.9 had
+their own F12 section 7 (Freeze Time, Override Weather with Cloud/Fog/Rain); the user had
+it removed in 0.1.10 in favour of that mod -- **do not rebuild it**. Nothing here needs to
+know about TWC: the model reads the live sun, moon and `WeatherCurve`, so whatever it sets
+is what Dark Nights darkens. (Its source has not been read; if it ever sets the weather
+somewhere `WeatherCurve` does not return, the log's `cloud fog rain` fields will disagree
+with the sky.)
 
 ## Still untested
 

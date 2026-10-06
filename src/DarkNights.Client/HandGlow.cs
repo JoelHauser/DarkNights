@@ -62,6 +62,22 @@ namespace DarkNights.Client
             }
         }
 
+        // What a prefix saved for its postfix. These run once per camera per frame, so the
+        // arrays are reused rather than allocated per call; a prefix and its postfix always
+        // run as a pair on the main thread, never interleaved with another call of the same.
+        private static float[] _savedPasses = new float[0];
+        private static float[] _savedLights = new float[0];
+
+        private static float[] Buffer(ref float[] buffer, int length)
+        {
+            if (buffer.Length != length)
+            {
+                buffer = new float[length];
+            }
+
+            return buffer;
+        }
+
         private static float Factor()
         {
             if (_failed)
@@ -83,6 +99,8 @@ namespace DarkNights.Client
         internal static void RenderPrefix(object __instance, Camera __0, out float[] __state)
         {
             __state = null;
+            NightDriver.Get();
+            long started = Perf.Start();
             try
             {
                 ReportOnce(__instance, __0);
@@ -115,7 +133,7 @@ namespace DarkNights.Client
                     return;
                 }
 
-                var saved = new float[passes.Length * 2];
+                float[] saved = Buffer(ref _savedPasses, passes.Length * 2);
                 for (int i = 0; i < passes.Length; i++)
                 {
                     object pass = passes.GetValue(i);
@@ -139,6 +157,10 @@ namespace DarkNights.Client
             {
                 Fail(e);
             }
+            finally
+            {
+                Perf.Stop(Perf.Part.Hooks, started);
+            }
         }
 
         internal static void RenderPostfix(object __instance, float[] __state)
@@ -148,6 +170,7 @@ namespace DarkNights.Client
                 return;
             }
 
+            long started = Perf.Start();
             try
             {
                 var passes = GameTypes.AmbientHighlight_Settings.GetValue(__instance) as Array;
@@ -167,6 +190,10 @@ namespace DarkNights.Client
             {
                 Fail(e);
             }
+            finally
+            {
+                Perf.Stop(Perf.Part.Hooks, started);
+            }
         }
 
         // ------------------------------------------------------ the fixed lights
@@ -174,6 +201,8 @@ namespace DarkNights.Client
         internal static void ExtraLightsPrefix(object __instance, out float[] __state)
         {
             __state = null;
+            NightDriver.Get();
+            long started = Perf.Start();
             try
             {
                 float f = Factor();
@@ -188,7 +217,7 @@ namespace DarkNights.Client
                     return;
                 }
 
-                var saved = new float[lights.Length];
+                float[] saved = Buffer(ref _savedLights, lights.Length);
                 for (int i = 0; i < lights.Length; i++)
                 {
                     // A struct: unbox, change, box back into the array.
@@ -204,6 +233,10 @@ namespace DarkNights.Client
             {
                 Fail(e);
             }
+            finally
+            {
+                Perf.Stop(Perf.Part.Hooks, started);
+            }
         }
 
         internal static void ExtraLightsPostfix(object __instance, float[] __state)
@@ -213,6 +246,7 @@ namespace DarkNights.Client
                 return;
             }
 
+            long started = Perf.Start();
             try
             {
                 var lights = GameTypes.AmbientHighlight_ExtraLights.GetValue(__instance) as Array;
@@ -226,6 +260,10 @@ namespace DarkNights.Client
             catch (Exception e)
             {
                 Fail(e);
+            }
+            finally
+            {
+                Perf.Stop(Perf.Part.Hooks, started);
             }
         }
 

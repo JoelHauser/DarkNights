@@ -38,14 +38,17 @@ namespace DarkNights.Client
 
         /// <summary>Changes whenever a different raid's world is up, so caches can be dropped.</summary>
         internal static int WorldGeneration;
-        private static string _lastWorldKey;
+        private static object _lastWorld;
+        private static string _lastLocation;
 
         internal static NightState Get()
         {
             if (Time.frameCount != _frame)
             {
                 _frame = Time.frameCount;
+                long started = Perf.Start();
                 _state = Compute();
+                Perf.Stop(Perf.Part.Night, started);
             }
 
             return _state;
@@ -56,10 +59,12 @@ namespace DarkNights.Client
             Settings = DarkNightsPlugin.CurrentSettings();
             Location = GameTypes.LocationId();
 
-            string worldKey = Location == null ? null : Location + "#" + GameTypes.GameWorld_Instance.GetValue(null, null)?.GetHashCode();
-            if (worldKey != _lastWorldKey)
+            // Compared by reference every frame, so nothing is built to compare.
+            object world = Location == null ? null : GameTypes.GameWorld_Instance.GetValue(null, null);
+            if (!ReferenceEquals(world, _lastWorld) || !string.Equals(Location, _lastLocation))
             {
-                _lastWorldKey = worldKey;
+                _lastWorld = world;
+                _lastLocation = Location;
                 WorldGeneration++;
             }
 

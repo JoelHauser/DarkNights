@@ -21,11 +21,33 @@ public class BotDarknessTests
     }
 
     [Fact]
-    public void ARoomWithAWindowAtNoonIsFairlyLit()
+    public void ARoomWithAWindowAtNoonIsDark()
     {
         float daylight = NightModel.DaylightFromOpenness(0.05f);
-        Assert.InRange(daylight, 0.4f, 0.6f);
-        Assert.True(NightModel.SightCap(NightModel.TargetLight(1f, daylight, 0f), PitchBlack) > 60f);
+        Assert.Equal(0f, daylight);
+        Assert.Equal(PitchBlack, NightModel.SightCap(NightModel.TargetLight(1f, daylight, 0f), PitchBlack));
+    }
+
+    [Fact]
+    public void RaysLeakingThroughCracksDoNotLightARoom()
+    {
+        // 1 to 10 of the 96 rays escaping: the flicker that made rooms pulse in 0.1.9.
+        for (int open = 0; open <= 10; open++)
+        {
+            Assert.Equal(0f, NightModel.DaylightFromOpenness(open / 96f));
+        }
+    }
+
+    [Fact]
+    public void DaylightRisesSteadilyFromRoomToOutdoors()
+    {
+        float last = 0f;
+        for (float openness = NightModel.RoomOpenness; openness <= NightModel.OutdoorOpenness; openness += 0.01f)
+        {
+            float daylight = NightModel.DaylightFromOpenness(openness);
+            Assert.True(daylight >= last);
+            last = daylight;
+        }
     }
 
     [Fact]
@@ -53,7 +75,9 @@ public class BotDarknessTests
 
     [Theory]
     [InlineData(0f, 0f)]
-    [InlineData(0.2f, 1f)]
+    [InlineData(0.12f, 0f)]
+    [InlineData(0.21f, 0.5f)]
+    [InlineData(0.3f, 1f)]
     [InlineData(0.9f, 1f)]
     public void DaylightFromOpennessEnds(float openness, float expected)
     {

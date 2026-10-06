@@ -291,19 +291,28 @@ namespace DarkNights.Client
         public const float DimSightRange = 80f;
 
         /// <summary>
-        /// The share of probe rays reaching open sky at which a place counts as fully in the
-        /// daylight. In the open street it is far above this; beside a wall or in a narrow
-        /// alley, around it.
+        /// Up to this share of probe rays reaching open sky, a place is a room: no sky fill at
+        /// all. A room with ordinary windows, or one whose walls leak a few rays through cracks,
+        /// sits below it.
         /// </summary>
-        public const float FullDaylightOpenness = 0.2f;
+        public const float RoomOpenness = 0.12f;
 
         /// <summary>
-        /// Daylight reaching a point, 0 to 1, from its openness. Square-root shaped: a room
-        /// whose window covers a few percent of its sky is already fairly lit, as a real one
-        /// is, while a sealed room gets nothing.
+        /// From this share on, a place is outdoors and gets the whole sky. A doorway you stand
+        /// in, a porch, a narrow alley and the open street are all above it.
+        /// </summary>
+        public const float OutdoorOpenness = 0.3f;
+
+        /// <summary>
+        /// Daylight ambient reaching a point, 0 to 1, from its openness. A room is dark at any
+        /// hour even with windows: the sky's light comes in as the sun's beams through them,
+        /// which the game draws as a shadowed light and this leaves alone, but the rest of the
+        /// room gets none of the sky's even fill. Only near outdoors does the fill come back.
+        /// Being flat across the whole room range also means rays flickering through cracks
+        /// as you move change nothing, so the room does not pulse.
         /// </summary>
         public static float DaylightFromOpenness(float openness) =>
-            Clamp01((float)Math.Sqrt(Clamp01(openness) / FullDaylightOpenness));
+            Smoothstep(InverseLerp(RoomOpenness, OutdoorOpenness, Clamp01(openness)));
 
         /// <summary>
         /// How lit a target is where it stands, 0 (pitch black) to 1 (daylight), for a bot with

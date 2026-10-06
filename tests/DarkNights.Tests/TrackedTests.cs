@@ -96,7 +96,7 @@ public class TrackedTests
         float upper = 6f;
         for (int frame = 0; frame < 50; frame++)
         {
-            upper = t.Apply(upper, b => NightModel.ExposureCeiling(b, 1.5f, 1f));
+            upper = t.Write(NightModel.ExposureCeiling(t.Adopt(upper), 1.5f, 1f));
         }
 
         Assert.Equal(1.5f, upper, 5);

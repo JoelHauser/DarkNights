@@ -9,11 +9,22 @@ namespace DarkNights.Client
     /// between log lines and reported as milliseconds per second of play (10 ms/s is 1% of the
     /// frame time at any frame rate), along with the longest single run, which is what a
     /// hitch would show.
+    ///
+    /// The parts do not overlap: every caller asks NightDriver for the frame's night before it
+    /// starts its own timer, so the one computation a frame is counted under Night alone.
     /// </summary>
     internal static class Perf
     {
         internal enum Part
         {
+            /// <summary>NightDriver: reading the sky, weather and bunker once a frame.</summary>
+            Night,
+
+            /// <summary>The patches on the game's render path: sky, clouds, flat ambient, moonlight, hand glow, CloudSix.</summary>
+            Hooks,
+
+            /// <summary>Per-frame upkeep: reflections and the exposure ceiling.</summary>
+            Upkeep,
             Daylight,
             Interiors,
             Bots,

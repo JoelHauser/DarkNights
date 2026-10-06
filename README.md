@@ -39,10 +39,12 @@ without its flashlight or NVGs on only sees you from a few metres away. Stand ne
 use your own light and you're visible as normal. This part works with or without SAIN.
 Bots can still hear you.
 
-**Rooms without daylight are dark at any hour.** A windowless room, or a bunker, is dark at
-noon and lit only by its lamps.
+**Rooms are dark at any hour.** A room is lit only where light actually reaches: the patch
+of sun through its window or doorway, and its lamps. The rest of it stays dark, even at
+noon. The sky's even fill comes back as you reach a doorway or step outside. There is no eye
+adaptation.
 
-> **Status: 0.1.9, in testing.** Played in game, but the darkness levels and the indoor
+> **Status: 0.1.10, pre-release.** Played in game, but the darkness levels and the indoor
 > daylight are still being tuned.
 
 ## Install

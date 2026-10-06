@@ -34,14 +34,12 @@ namespace DarkNights.Client
             return Write(Base * multiplier);
         }
 
-        /// <summary>As Apply, for a change that is not a multiplier -- a ceiling, say.</summary>
-        public float Apply(float current, System.Func<float, float> fromBase)
-        {
-            Adopt(current);
-            return Write(fromBase(Base));
-        }
-
-        private void Adopt(float current)
+        /// <summary>
+        /// Apply in two steps, for a change that is not a multiplier -- a ceiling, say: Adopt
+        /// the field's current value and get the base back, then Write what goes in. (Two steps
+        /// rather than a callback, which would allocate a closure every frame.)
+        /// </summary>
+        public float Adopt(float current)
         {
             if (!_haveWritten || current != _written)
             {
@@ -52,9 +50,12 @@ namespace DarkNights.Client
 
                 Base = current;
             }
+
+            return Base;
         }
 
-        private float Write(float value)
+        /// <summary>Records what is about to be written, and returns it.</summary>
+        public float Write(float value)
         {
             _written = value;
             _haveWritten = true;
