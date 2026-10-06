@@ -31,7 +31,7 @@ namespace DarkNights.Client
         public const string PluginName = "Dark Nights";
 
         // Must match <Version> in DarkNights.Client.csproj. pack.ps1 refuses to pack if not.
-        public const string PluginVersion = "0.1.0";
+        public const string PluginVersion = "0.1.9";
 
         internal static ManualLogSource Log;
 
@@ -45,6 +45,8 @@ namespace DarkNights.Client
         internal static ConfigEntry<bool> DarkenInteriors;
         internal static ConfigEntry<bool> LimitEyeAdaptation;
         internal static ConfigEntry<bool> DarkenReflections;
+        internal static ConfigEntry<bool> DarkBunkers;
+        internal static ConfigEntry<bool> DarkWithoutDaylight;
         internal static ConfigEntry<float> HandGlowAmount;
         internal static ConfigEntry<bool> HandGlowByDay;
 
@@ -63,7 +65,15 @@ namespace DarkNights.Client
         internal static ConfigEntry<float> CustomExposureCeiling;
 
         internal static ConfigEntry<bool> BotsShareTheNight;
-        internal static ConfigEntry<float> BotsShareStrength;
+        internal static ConfigEntry<bool> DarknessBlindsBots;
+        internal static ConfigEntry<float> PitchBlackSight;
+
+        internal static ConfigEntry<bool> FreezeTime;
+        internal static ConfigEntry<float> FreezeHour;
+        internal static ConfigEntry<bool> OverrideWeather;
+        internal static ConfigEntry<float> TestCloud;
+        internal static ConfigEntry<float> TestFog;
+        internal static ConfigEntry<float> TestRain;
 
         internal static ConfigEntry<float> LogInterval;
         internal static ConfigEntry<KeyboardShortcut> ToggleKey;
@@ -77,6 +87,8 @@ namespace DarkNights.Client
         {
             Log = Logger;
             BindConfig();
+            Config.SettingChanged += (_, e) =>
+                Diagnostics.SettingChanged($"{e.ChangedSetting.Definition.Key} = {e.ChangedSetting.BoxedValue}");
 
             GameTypes.Resolve(Log);
             var harmony = new Harmony(PluginGuid);
@@ -95,6 +107,8 @@ namespace DarkNights.Client
 
         private void LateUpdate()
         {
+            TestConditions.Tick();
+            Daylight.Tick();
             Interiors.Tick();
             Reflections.Tick();
             EyeAdaptation.Tick();
@@ -129,6 +143,15 @@ namespace DarkNights.Client
             DarkenInteriors = Config.Bind(parts, "Interiors", true,
                 "Daylight carried into buildings by the game's interior ambient. Interiors that are already dark, " +
                 "and every real lamp, are left alone.");
+            DarkWithoutDaylight = Config.Bind(parts, "Rooms Without Daylight Are Dark", true,
+                "At any hour, a place only gets the daylight that can reach it. Dark Nights measures how much open sky " +
+                "is visible from where you stand -- through windows and open doors, not through walls or closed doors -- " +
+                "and a room with none is dark at noon, lit only by its lamps. Bots without a light or NVGs cannot see " +
+                "into such a room either. While you are in a dark room, what you see through its doorway dims with it.");
+            DarkBunkers = Config.Bind(parts, "Bunkers Dark By Day", true,
+                "Areas the map marks as bunkers -- the ones where outside sound goes muffled -- get no daylight, so " +
+                "inside one it is as dark as a moonless overcast night at any hour. Lamps still light them, and bots " +
+                "without a light or NVGs cannot see into them either. Ordinary rooms are not marked and follow the time of day.");
             LimitEyeAdaptation = Config.Bind(parts, "Limit Eye Adaptation", true,
                 "Caps how far auto-exposure can brighten a dark night, so the darkness is not adapted straight " +
                 "back away. Lit areas still expose normally.");
@@ -146,47 +169,80 @@ namespace DarkNights.Client
                 "On: the glow setting applies day and night. Off: by day it is vanilla, and it fades with dusk.");
 
             TwilightStart = Config.Bind(world, "Dusk Starts (sun degrees)", Presets.TwilightStart,
-                new ConfigDescription("Sun elevation where darkening begins. Nothing above it changes, so day is vanilla.",
+                new ConfigDescription("Only matters at dusk and dawn. Sun elevation where darkening begins; nothing " +
+                    "above it changes, so day is vanilla.",
                     new AcceptableValueRange<float>(-6f, 6f)));
             TwilightEnd = Config.Bind(world, "Night Complete (sun degrees)", Presets.TwilightEnd,
-                new ConfigDescription("Sun elevation where darkening is complete. -12 is nautical dusk.",
+                new ConfigDescription("Only matters at dusk and dawn. Sun elevation where darkening is complete; " +
+                    "-12 is nautical dusk.",
                     new AcceptableValueRange<float>(-18f, -3f)));
             Overcast = Config.Bind(world, "Overcast Darkening", 0.6f,
-                new ConfigDescription("Extra multiplier under full cloud, which blocks the moon and the stars. 1 = none.",
+                new ConfigDescription("Only matters under cloud (none on a clear night). Extra multiplier under full " +
+                    "cloud, which blocks the moon and the stars. 1 = none.",
                     new AcceptableValueRange<float>(0.1f, 1f)));
             FogDark = Config.Bind(world, "Fog Darkening", 0.75f,
-                new ConfigDescription("Extra multiplier in thick fog. 1 = none.", new AcceptableValueRange<float>(0.1f, 1f)));
+                new ConfigDescription("Only matters in fog. Extra multiplier in thick fog. 1 = none.",
+                    new AcceptableValueRange<float>(0.1f, 1f)));
             RainDark = Config.Bind(world, "Rain Darkening", 0.85f,
-                new ConfigDescription("Extra multiplier in heavy rain. 1 = none.", new AcceptableValueRange<float>(0.1f, 1f)));
+                new ConfigDescription("Only matters in rain. Extra multiplier in heavy rain. 1 = none.",
+                    new AcceptableValueRange<float>(0.1f, 1f)));
             NightVisionRetention = Config.Bind(world, "Night Vision Keeps Vanilla", 0.5f,
-                new ConfigDescription("While NVGs are on, how much of the vanilla night they see. 0 = they see the full " +
-                    "darkness (realistic, and noisier); 1 = NVGs behave exactly as vanilla.",
+                new ConfigDescription("Only matters with NVGs on. How much of the vanilla night they see. 0 = they see " +
+                    "the full darkness (realistic, and noisier); 1 = NVGs behave exactly as vanilla.",
                     new AcceptableValueRange<float>(0f, 1f)));
-            InteriorFloor = Config.Bind(world, "Interior Floor", 0.02f,
-                new ConfigDescription("Interior ambient at or below this brightness is never darkened, and nothing is " +
-                    "darkened below it.", new AcceptableValueRange<float>(0f, 0.2f)));
+            InteriorFloor = Config.Bind(world, "Interior Floor", 0.005f,
+                new ConfigDescription("Rooms whose ambient is already at or below this brightness are left alone, and no " +
+                    "room is darkened below it. Higher keeps dark rooms more visible; 0 lets every room go fully dark.",
+                    new AcceptableValueRange<float>(0f, 0.2f)));
 
             NightSettings medium = Presets.For(DarknessLevel.Medium);
+            const string customOnly = "Only used when Darkness is set to Custom. ";
             CustomMoonless = Config.Bind(custom, "Moonless Sky Ambient", medium.MoonlessAmbient,
-                new ConfigDescription("Sky ambient on a clear moonless night, as a share of vanilla.", new AcceptableValueRange<float>(0.02f, 1f)));
+                new ConfigDescription(customOnly + "Sky ambient on a clear moonless night, as a share of vanilla.",
+                    new AcceptableValueRange<float>(0.02f, 1f)));
             CustomFullMoon = Config.Bind(custom, "Full Moon Sky Ambient", medium.FullMoonAmbient,
-                new ConfigDescription("Sky ambient under a high, clear full moon, as a share of vanilla.", new AcceptableValueRange<float>(0.02f, 1f)));
+                new ConfigDescription(customOnly + "Sky ambient under a high, clear full moon, as a share of vanilla.",
+                    new AcceptableValueRange<float>(0.02f, 1f)));
             CustomMoonlight = Config.Bind(custom, "Moonlight", medium.Moonlight,
-                new ConfigDescription("The moon's direct light, as a share of vanilla.", new AcceptableValueRange<float>(0.02f, 1f)));
+                new ConfigDescription(customOnly + "The moon's direct light, as a share of vanilla.",
+                    new AcceptableValueRange<float>(0.02f, 1f)));
             CustomInterior = Config.Bind(custom, "Interior Ambient", medium.Interior,
-                new ConfigDescription("Interior daylight ambient at night, as a share of vanilla.", new AcceptableValueRange<float>(0.02f, 1f)));
+                new ConfigDescription(customOnly + "How much of the night outside reaches an unlit room, as a share.",
+                    new AcceptableValueRange<float>(0.02f, 1f)));
             CustomExposureCeiling = Config.Bind(custom, "Night Exposure Ceiling", medium.ExposureCeiling,
-                new ConfigDescription("The highest auto-exposure may reach at full night, in the game's own units " +
-                    "(its range is -6 to 6). Lower is darker.", new AcceptableValueRange<float>(-6f, 6f)));
+                new ConfigDescription(customOnly + "The highest auto-exposure may reach at full night, in the game's own " +
+                    "units (its range is -6 to 6). Lower is darker. No effect while CloudSix's Disable Eye Adaptation is on.",
+                    new AcceptableValueRange<float>(-6f, 6f)));
 
             BotsShareTheNight = Config.Bind(bots, "Bots Share The Night", true,
-                "Bots never see rendered light; SAIN judges the dark by the clock hour. On, SAIN judges it by the " +
-                "same sky you see instead: the real sunset, the moon's height and phase, cloud hiding the moon. " +
-                "SAIN keeps its own night strength and weather. No effect without SAIN. Under Fika, the host's " +
-                "setting is the one that counts.");
-            BotsShareStrength = Config.Bind(bots, "Strength", 1f,
-                new ConfigDescription("1 = bots go entirely by the sky; 0 = SAIN's clock; between blends the two.",
-                    new AcceptableValueRange<float>(0f, 1f)));
+                "On: SAIN judges the dark by the same sky you see -- the real sunset, the moon's height and phase, " +
+                "cloud hiding the moon. Off: SAIN's own clock (dusk 20:00-22:00, moon ignored). Bots never see " +
+                "rendered light, so this is what makes them share your night. SAIN keeps its own night strength and " +
+                "weather. No effect without SAIN. Under Fika, the host's setting is the one that counts.");
+            DarknessBlindsBots = Config.Bind(bots, "Darkness Blinds Bots", true,
+                "On: at night a bot with no flashlight and no NVGs on cannot see you in the dark -- in an unlit room " +
+                "only from a few metres, outdoors further the brighter the moon. Standing near a lamp, or using your " +
+                "own light, makes you visible as normal. Works with or without SAIN. They can still hear you.");
+            PitchBlackSight = Config.Bind(bots, "Pitch Black Sight (m)", 3f,
+                new ConfigDescription("How close a bot without light or NVGs must be to see you in total darkness.",
+                    new AcceptableValueRange<float>(1f, 20f)));
+
+            const string test = "7. Test conditions";
+            FreezeTime = Config.Bind(test, "Freeze Time", false,
+                "Holds the raid's clock at the hour below, sky and bots alike. For testing; turn it off to let " +
+                "time run on from where it stopped.");
+            FreezeHour = Config.Bind(test, "Freeze At Hour", 1f,
+                new ConfigDescription("The hour to hold, 0 to 24. 1 = 01:00, 22.5 = 22:30.", new AcceptableValueRange<float>(0f, 23.99f)));
+            OverrideWeather = Config.Bind(test, "Override Weather", false,
+                "Replaces the raid's forecast with the three values below, live. For testing.");
+            TestCloud = Config.Bind(test, "Cloud", -1f,
+                new ConfigDescription("-1 = clear sky, 0 = scattered, 0.4 and up = overcast (hides the moon), 1 = heavy.",
+                    new AcceptableValueRange<float>(-1f, 1f)));
+            TestFog = Config.Bind(test, "Fog", 0.0013f,
+                new ConfigDescription("0.0013 = clear air (the game's usual), 0.004 = haze, 0.012 = thick, 0.05+ = very thick.",
+                    new AcceptableValueRange<float>(0.001f, 0.1f)));
+            TestRain = Config.Bind(test, "Rain", 0f,
+                new ConfigDescription("0 = dry, 1 = downpour.", new AcceptableValueRange<float>(0f, 1f)));
 
             LogInterval = Config.Bind(diag, "Log Interval (seconds)", 30f,
                 new ConfigDescription("How often a line describing the night goes into the BepInEx log during a raid. 0 = never.",
@@ -246,7 +302,30 @@ namespace DarkNights.Client
             Patch(harmony, GameTypes.AmbientReady, GameTypes.AmbientLight_SetSH, nameof(Patches.SkyAmbientPrefix), prefix: true, "sky ambient");
             Patch(harmony, GameTypes.HighlightReady, GameTypes.AmbientHighlight_SetSH, nameof(Patches.HighlightPrefix), prefix: true, "character highlight");
             Patch(harmony, GameTypes.CloudsReady, GameTypes.CloudController_UpdateAmbient, nameof(Patches.CloudsPrefix), prefix: true, "clouds");
+            Patch(harmony, GameTypes.FlatAmbientReady, GameTypes.LevelSettings_OnPreCull, nameof(Patches.FlatAmbientPostfix), prefix: false, "flat map ambient");
             Patch(harmony, GameTypes.MoonlightReady, GameTypes.TOD_Sky_LateUpdate, nameof(Patches.MoonlightPostfix), prefix: false, "moonlight");
+
+            // After SAIN's own postfix on the same method, which adds its per-enemy distance:
+            // the cap has to see the final sum.
+            if (!GameTypes.BotDarknessReady)
+            {
+                Log.LogWarning("Bots in the dark: its game members were not found; bots see as before.");
+                return;
+            }
+
+            try
+            {
+                var postfix = new HarmonyMethod(AccessTools.Method(typeof(BotDarkness), nameof(BotDarkness.SensorDistancePostfix)))
+                {
+                    priority = Priority.Last,
+                    after = new[] { SainBridge.SainGuid },
+                };
+                harmony.Patch(GameTypes.EnemyInfo_AdditionalSensorDistance, postfix: postfix);
+            }
+            catch (Exception e)
+            {
+                Log.LogError("Could not patch EnemyInfo.GetAdditionalSensorDistance for bots in the dark: " + e.Message);
+            }
         }
 
         private static void Patch(Harmony harmony, bool ready, System.Reflection.MethodInfo target, string patch, bool prefix, string what)

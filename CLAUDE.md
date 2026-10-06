@@ -7,30 +7,44 @@ not a value: that mod reduces sunlight, moonlight **and** ambient light, makes i
 darker at night *unless they are well lit*, follows the weather, and offers seven levels.
 It is not a slider and not a shader over the image. The whole world dims as one thing.
 
-**Nothing in this repo has run in the game.** 0.1.0 was built on 2026-10-05 from static
-analysis of the game assembly and the source of four Forge mods. Every number in
-`Presets.cs` is a starting ladder, not a tuned value.
+**Status: 0.1.9, run in game on 2026-10-05 across about eight raids** (Shoreline,
+Lighthouse, Reserve). 0.1.0 was built that morning from static analysis alone; everything
+after it was driven by what the live logs and the user's screenshots showed -- see
+*What the game showed* below. The presets were lowered once after play (0.1.4) and are
+still a first ladder, not tuned values. **One design decision is open: eye adaptation**
+(see that section) -- do not tune the daylight curve until the user has chosen.
 
-## The box this was built on
+## The boxes
 
-| | development | live |
+| | first box (0.1.0 only) | the user's box (0.1.1 on) |
 | --- | --- | --- |
-| SPT install | `C:\HUH` -- never launched | `H:\SPT4.1.X` (per the UltrawideStash notes) |
+| SPT install | `C:\HUH` -- never launched | `H:\SPT4.1.X`, launched and played |
 | SPT version | 4.1.5 | 4.1.6 |
 | EFT client | `0.16.9.40743` | `0.16.9.5.40743` |
-| Patched Assembly-CSharp | **not on this box, and no hpatchz** | -- |
+| Patched Assembly-CSharp | not there | **yes** -- `H:\SPT4.1.X\EscapeFromTarkov_Data\Managed`, read with ilspycmd |
+| Clone | -- | `H:\SPTMods\DarkNights` |
 
 ```
-scripts\pack.ps1 -SPTPath C:\HUH            # version check, build, test, reference check, zip
-scripts\pack.ps1 -SPTPath H:\SPT4.1.X -Install
+scripts\pack.ps1 -SPTPath H:\SPT4.1.X -Install   # version check, build, test, reference check, zip, install
 dotnet test tests\DarkNights.Tests
 ```
 
-**Run those through PowerShell, not Bash** -- the `C:HUH` mangling trap, same as the
-sibling repos.
+**Run those through PowerShell, not Bash** -- the path mangling trap, same as the sibling
+repos. `-Install` cannot replace the DLL while `EscapeFromTarkov` is running; check the
+process first and build without `-Install` if it is up. `releases/` holds the zips and is
+ignored.
 
-The user does **not** run Amands's Graphics. Compatibility with it is still designed for,
-because it is the most-downloaded graphics mod on the Forge, but it is not the test bed.
+The user's mod list (from `BepInEx\plugins`) includes **Amands's Graphics 1.8.0** (the
+first notes said they did not run it -- wrong), CloudSix, AOSix, POMSix, Borkel's
+Realistic NVGs, Janky's HollywoodGraphics/HollywoodFX (AO, bloom, motion blur, impacts --
+nothing lighting-related; decompiled and checked), SAIN 4.5.1, ORBIT, WTT Content
+Backport, Armory and Pack 'n' Strap.
+
+**Logs:** `H:\SPT4.1.X\BepInEx\LogOutput.log` -- the `[night]` line every 30 s and on
+every F12 change and Ctrl+F8/F11. **ORBIT** writes a per-frame hitch journal,
+`BepInEx\ORBIT\diagnostics\performance-*.jsonl` (`Hitches[]` with `FrameMs`,
+`RaidSeconds`, GC counts) -- the tool that found the 2-second stutter. Its PERF summary
+lines are in LogOutput too (`hitch100=`, `worst=`).
 
 ## Why there is no Assembly-CSharp reference
 
@@ -39,8 +53,9 @@ unpatched original until the SPT Launcher applies its delta, and the delta renam
 obfuscated types. Everything this mod touches has a readable name in the unpatched
 assembly -- TOD_Sky is a third-party asset, and AmbientLight, PrismEffects, NightVision,
 WeatherController and EnvironmentManager are BSG's but not obfuscated -- so it is all
-resolved by name in `GameTypes.cs`. **Those names were read off the unpatched assembly
-only.** The first live log's `Features:` line is the check that they survive the delta.
+resolved by name in `GameTypes.cs`. The live `Features:` line confirmed every name
+survives the delta (all "on" since 0.1.0), and every member added later was read off the
+**patched** assembly on `H:`.
 
 New game members go in `GameTypes`, never at the patch site. Each feature has its own
 `*Ready` flag, so a rename turns one part off with a warning.
@@ -81,9 +96,33 @@ Read with ilspycmd from `C:\HUH\EscapeFromTarkov_Data\Managed\Assembly-CSharp.dl
   values (outdoor 0.23 / indoor 0.14 by default). `exposureUpperLimit` /
   `exposureLowerLimit` (component defaults 6 / -6) are only set by preset loads. Whether
   `useExposure` is on in EFT's presets is serialised data -- the log line reports it.
-- **`LevelSettings`** reapplies `RenderSettings.ambient*` on every camera pre-cull, and
-  switches to its `NightVision*` colours while NVGs are on. Anything writing
-  `RenderSettings.ambient*` is overwritten every frame. This mod does not touch it.
+- **`LevelSettings.OnPreCullCallback(Camera)`** (registered on `Camera.onPreCull`) sets
+  Unity's flat ambient -- `RenderSettings.ambientLight/Sky/Equator/Ground` from the map's
+  fixed `SkyColor` and `AmbientIntensity` -- before **every** camera renders, or its
+  `NightVision*` colours while `AmbientType == NightVision`. It never follows time of day.
+  This was the even, directionless glow left in an unlit room on Darkest (Reserve, 0.1.4);
+  0.1.5 postfixes it and scales the output. It is rewritten from the fields on every
+  call, so scaling the output cannot compound. Also sets `_MinAmbientColor` (smoke) once.
+- **Bunkers are flagged by the map.** `EFT.EnvironmentEffect.IndoorTrigger.IsBunker` (the
+  flag that also low-passes outside sound); `EnvironmentManager.InBunker` is true while
+  your player is in one; `EnvironmentManager.TryFindTriggerByPos(Vector3)` finds the
+  trigger at any point.
+- **Physics layers** (`LayersMaskController`, built from `LayerMask.NameToLayer`): walls are
+  `HighPolyCollider`, ground `Terrain`, doors `DoorLowPolyCollider`, and **glass is
+  `TransparentCollider`** -- a ray masked to the first three passes through windows. This is
+  what `Daylight` relies on.
+- **Bot sight distance**: `EnemyPartVision.CheckLineOfSight` rejects a part if
+  `LookSensor.VisibleDist + addSensorDistance < distance`, where `addSensorDistance =
+  EnemyInfo.GetAdditionalSensorDistance(BotOwner)` (1, or `ENEMY_LIGHT_ADD` if the target's
+  `AIData.UsingLight`). SAIN postfixes the same method to add its per-enemy distance.
+  `BotOwner.NightVision.UsingNow` and `BotOwner.BotLight.IsEnable` say whether the bot has
+  goggles or its light on; `AIData.IsInside` is `EnvironmentId > 0`.
+- **The clock and the weather can be set from a mod.** `TODSkyProvider.Instance.CurrentTime
+  .GameDateTime` is the clock the sky is drawn from (`GameWorld.GameDateTime` may be the
+  same object); `Reset(real, game, factor, force: true)` moves it and `TimeFactorMod = 0`
+  stops it. `WeatherController.WeatherCurve` returns `WeatherDebug` (cloud, fog, rain...)
+  instead of the server's forecast while `WeatherDebug.isEnabled`; the server's weather
+  arriving turns that off, so it is set every frame.
 - **Thermal** blits `GBuffer0` (albedo) to the camera target and renders temperature, so
   it never sees scene lighting. **NVG** is a gain blit over the lit image plus the
   `LevelSettings` ambient swap -- so darker ambient means darker NVG unless compensated.
@@ -91,7 +130,7 @@ Read with ilspycmd from `C:\HUH\EscapeFromTarkov_Data\Managed\Assembly-CSharp.dl
   and 17-23 (`EnableLongShadowsCorrection`).
 - Shader property names are behind BSG's string encryption (`\uf2c3.\ue000(N)`), so
   how `StencilShadow.Ambient` composites (replace or multiply) is **not** knowable from
-  here. The design assumes replace; the bubble tests will say.
+  here. The design assumes replace; still not confirmed in game.
 
 ## The design rule: multiply at the output, never set an input someone else owns
 
@@ -103,13 +142,53 @@ Read with ilspycmd from `C:\HUH\EscapeFromTarkov_Data\Managed\Assembly-CSharp.dl
 | Moonlight | postfix `TOD_Sky.LateUpdate`, through `Tracked` | adopts every value TOD (or a mod) writes as the new base |
 | Interiors | `Interiors.cs`, from cached originals | no mod read touches these volumes |
 | Eye adaptation | `exposureUpperLimit` through `Tracked` | adopts a preset load as the new base |
+| Flat map ambient | postfix `LevelSettings.OnPreCullCallback` | scales what it just wrote from the map's fields; Amands edits the fields, not the output |
+| Reflections | `AmbientLight.ReflectionIntensity` through `Tracked` | the instance is collected from the `SetSH` prefix (`__instance`) -- it is a scene object, not a camera component |
+| Bot sight in the dark | postfix `EnemyInfo.GetAdditionalSensorDistance`, `Priority.Last`, after SAIN | caps the final sum SAIN produced; never lowers anything when the target is lit |
 
-Never: a screen overlay, gamma, `LevelSettings`, `RenderSettings.ambient*`, or the TOD
-night parameters (Amands's Graphics writes `Night.LightIntensity` and would reset it).
+Never: a screen overlay, gamma, or the TOD night parameters (Amands's Graphics writes
+`Night.LightIntensity` and would reset it). `RenderSettings.ambient*` only through the
+`LevelSettings` postfix, never set directly.
 
 `NightModel` is the whole decision, pure and tested: nightness from the sun, credit back
 from the moon's height and phase, taken away again by cloud, fog and rain, with NVG
-retention. One `NightState` per frame (`NightDriver`, lazily on first use) feeds every part.
+retention; interiors now get `preset share x outdoor ambient` (0.1.4, so a house is darker
+under cloud than under a full moon); then `WithBunker` takes everything toward
+`BunkerLevel` (0.01) by how sealed off you are -- a flagged bunker, or little daylight
+reaching the camera. One `NightState` per frame (`NightDriver`, lazily on first use) feeds
+every part. `NightDriver.SkyNightness` is the sun-only nightness, for bots.
+
+## What the game showed (2026-10-05) -- and what each finding changed
+
+- **0.1.0 froze the game ~330 ms every 2.00 s** (ORBIT journal, no GC). Three
+  `FindObjectsOfType` scans on 2-second timers (Prism, NightVision, AmbientLight), ~110 ms
+  each on Shoreline. 0.1.1 reads Prism and NightVision off `Camera.GetAllCameras`
+  (`CameraComponents`); the next raid had no periodic hitch (59 fps, 0 frames over 100 ms).
+  **Never scan the scene on a timer** -- the only scene search left is the lamp list, once
+  per raid (1371 lamps on Reserve, 1 ms).
+- **AmbientLight is not on a camera** (0.1.1 logged `reflections NaN`): it is an
+  `OnRenderObjectConnector` scene object. 0.1.2 collects it from the `SetSH` prefix.
+- **F12 settings work live** -- the `Setting changed:` line (0.1.2) proved every change
+  reached the model. Most sliders only act in particular conditions (dusk, fog, rain, NVG,
+  Custom), which read as "broken" on a clear night; their descriptions now say when they
+  apply, and disabled parts print `off` in the log.
+- **CloudSix pins exposure**: every line reads `auto-exposure on, limits 0.8 to 0.8`. Limit
+  Eye Adaptation and the exposure ceilings do nothing while CloudSix's "Disable Eye
+  Adaptation" is on (its default) -- and **there is no eye adaptation at all** in the
+  user's game. See *Eye adaptation* below.
+- **Darkest was too bright** (sky x0.36, interiors x0.25 under a bright moon). 0.1.4
+  lowered the ladder and tied interiors to the night outside; Interior Floor 0.02 -> 0.005
+  (also edited in the user's cfg, backup `.bak-0.1.3`).
+- **An unlit room on Darkest stayed evenly lit** (Reserve): the `LevelSettings` flat
+  ambient. Fixed in 0.1.5. The screenshot's pixels were 0-4/255, so the user's monitor
+  also lifts blacks; keep that in mind when judging "too bright" from screenshots.
+- **The blue scope lens** is the WTT Content Backport scope's own material. The user said to
+  drop it. Bluish highlights on metal in dark rooms are likely day-baked reflection
+  probes -- not built.
+- **Performance, measured (0.1.9, Reserve)**: daylight ~3 ms/s, bots ~3 ms/s, interiors
+  ~1 ms/s -- under 1% of frame time; longest single runs 2.4 ms (an interior pass) and
+  5.7 ms once (the first bot check after the lamp search). The `perf` field of the
+  `[night]` line reports this every time.
 
 ## The hand glow, and the weapon
 
@@ -224,30 +303,89 @@ The Forge (`forge.sp-tarkov.com`) answered WebFetch with Cloudflare 525 all sess
 `sp-mod.com` mirror worked. Its search returns current-version results only and is thin,
 so this list is not exhaustive.
 
-## Untested, in rough order of risk
+## Rooms without daylight (0.1.7 bunkers, 0.1.8 any room)
 
-1. **Do the names resolve on the patched assembly?** The `Features:` line.
-2. **Does auto-exposure even run?** If `useExposure` is off, the ceiling does nothing; if
-   it runs near its ceiling at night, the presets' ceilings may be too low or too high.
-   Units are Prism's own and the real night value is unknown.
-3. **Interiors: replace or multiply?** If `StencilShadow.Ambient` multiplies the sky
+The user's rule: **a room with no light source and no daylight reaching it is dark, at any
+hour, like real life** -- a windowless second-floor room at noon included. EFT has no
+notion of that: outside an interior volume the sky SH reaches everything.
+
+- **`Daylight.cs`**: 96 directions on a Fibonacci spiral over the upper hemisphere (down to
+  y = -0.15), 12 raycasts per frame from `Camera.main`, 150 m, mask HighPolyCollider |
+  Terrain | DoorLowPolyCollider (glass passes, closed doors block). `Openness` = share
+  that escape; `DaylightFromOpenness = sqrt(openness / 0.2)`; `Here` fades over 0.75 s.
+  `NightDriver` feeds `max(bunker, 1 - Here)` into `WithBunker`.
+- **Bunkers** (`Bunkers Dark By Day`): `EnvironmentManager.InBunker` counts as fully
+  sealed, with `Bunker: entered/left` in the log.
+- **Known problem (0.1.9 log, Reserve by day):** one escaping ray is 1% open sky, which the
+  sqrt curve turns into daylight 0.23 -- 24x the ambient of a sealed room. Rays through
+  cracks open and close as you move, so the room **pulses**. The user called it "eye
+  adaptation super wonky". Fix waits on the decision below.
+- **Trade-off, accepted for now:** the ambient is one value for the whole frame, so from a
+  dark room the yard through the doorway dims too. No light bounce: a room opening only
+  onto an unlit hallway reads as sealed.
+
+## Eye adaptation -- OPEN, the user has to choose
+
+Real rooms with windows get ~2-5% of outdoor light and look fine because eyes adapt over
+seconds. The user's game has **no** adaptation (CloudSix pins exposure). Physically right
+light without adaptation makes every windowed room near-black at noon. Offered on
+2026-10-05, no answer yet:
+
+1. **Realistic light + real adaptation**: turn off CloudSix's exposure lock and let Prism's
+   auto-exposure (with EFT's per-`IndoorTrigger` exposure offsets) run; rooms read black on
+   entry and resolve, outdoors blooms then settles. Changes CloudSix's look, and CloudSix is
+   the one mod the user requires.
+2. **Steadier, not realistic**: a dead zone so 1-2 rays count as sealed, a gentler curve so
+   windowed rooms keep a comfortable share, no adaptation. CloudSix untouched.
+
+## Bots in the dark (0.1.6, daylight-aware since 0.1.8)
+
+The user: bots must not see you in the dark unless they have a flashlight or NVGs on (a bot
+walked right past them in a dark corner, "really cool"). `BotDarkness.cs` postfixes
+`EnemyInfo.GetAdditionalSensorDistance` after SAIN and lowers `__result` so
+`VisibleDist + __result <= SightCap(targetLight)`:
+
+- No cap if the bot's `NightVision.UsingNow` or `BotLight.IsEnable`, or the target's
+  `AIData.UsingLight` (SAIN/vanilla already handle a lit target), or the target is lit.
+- `TargetLight = max(lamp, max(skyVisibility, Starlight 0.06) x daylight)`: sky as
+  `BotVisibility` (sun, moon, cloud), daylight from a 24-ray `Daylight.OpennessAt` probe at
+  head height (cached 2 s per target; 0 in a flagged bunker), lamps from the once-per-raid
+  list (position/range cached, distance tested first, Unity asked only for close ones).
+- `SightCap`: 3 m (`Pitch Black Sight`) at 0, rising to 80 m at 0.5, none above.
+- Works with or without SAIN. Walls are not traced for lamps. Hearing is untouched.
+- Untested in a fight: whether SAIN's other systems (e.g. its own vision raycast job, or
+  `IsEnemyAlwaysInVisibleDistance` returning 1000) bypass the cap -- the cap is applied
+  after SAIN's postfix on the same method, so the sum it returns is capped, but nothing has
+  verified a bot actually losing a target in the dark.
+
+## Test conditions (F12 section 7, 0.1.3)
+
+`Freeze Time` + `Freeze At Hour` hold the clock (sky and bots); `Override Weather` + Cloud /
+Fog / Rain replace the forecast live. Both resolved "on" in the user's game; the freeze
+has not been seen in a log yet (`Test: clock frozen at`).
+
+## Still untested
+
+1. **Interiors: replace or multiply?** If `StencilShadow.Ambient` multiplies the sky
    ambient rather than replacing it, interiors get darkened twice.
-4. **Harmony on `ref SphericalHarmonicsL2 __0`** for a by-value struct parameter --
-   standard, but unrun.
-5. **The weather constants**: cloudiness -0.4..0.4 and fog 0.018 are taken from the game's
+2. **The weather constants**: cloudiness -0.4..0.4 and fog 0.018 are taken from the game's
    own InverseLerp ranges and from SAIN/FogSix, not measured.
-6. **NVG detection** with Borkel's mod.
-7. **Performance**: every 5 s a pass over the volume registries (reflection), and a
-   `FindObjectsOfType` every 2 s for Prism and NightVision. Expected negligible; unmeasured.
+3. **NVG detection** with Borkel's mod (the log shows `NVG on` switching, so it reports).
+4. **Bots losing you in the dark in an actual fight** (see above).
+5. **The day/night calibration**: the `sky SH` field logs the game's raw sky ambient
+   (0.035-0.047 by day, 0.0027-0.0039 at dawn on Reserve) -- use it to set `BunkerLevel`
+   and the daylight curve rather than guessing.
 
-## Not in 0.1.0, on purpose
+## Not built, on purpose
 
 - **Sky dome and haze.** `ToDController` rewrites `Atmosphere.Brightness` every frame, but
   the SH job samples the atmosphere too, so scaling it darkens the ambient a second time,
   non-linearly. Needs a live look before it is built.
 - **`RenderSettings.fogColor`** (TOD sets it every frame from the sky).
-- **Bots without SAIN.** Still vanilla -- see *Bots and SAIN* below for why, and for what
-  0.1.0 does when SAIN is loaded.
+- **Reflection probes** (day-baked specular in dark rooms). Would need a probe list found
+  once per raid; offered, not asked for.
+- **Bots without SAIN, by the clock.** The time-of-day bridge below is SAIN-only; "Bots in
+  the dark" works without SAIN.
 
 ## Bots and SAIN
 
@@ -287,15 +425,16 @@ and searches toward them.
 `TimeClass.getModifier(float time, ETimeOfDay, out float visibilityRatio)`, found by name
 and shape, so no SAIN reference. It replaces SAIN's clock ratio with
 `NightModel.BotVisibility` -- sun elevation through the same twilight, moon credit times
-`MoonShare(preset)` -- blended by `Strength`, and returns `lerp(min, 1, ratio)` with SAIN's
+`MoonShare(preset)` -- and returns `lerp(min, 1, ratio)` with SAIN's
 own minimum **inferred from SAIN's answer** (`TryInferSainMinimum`), so its snow value and
 user config carry through. Because SAIN's caller derives the gain-sight modifier from the
 ratio, and its light/NVG/always-visible decisions from the result, all of them follow.
 Fog and rain are **not** in `BotVisibility`: SAIN applies its own weather on top, and
 counting them twice would be wrong. Cloud enters only as the moon it hides. Soft
 `BepInDependency` on SAIN for load order; the postfix turns itself off on its first error.
-`BotVisibilityTests` reproduces SAIN's getModifier from source and checks the inference and
-that strength 0 hands SAIN back its own answer exactly.
+`BotVisibilityTests` reproduces SAIN's getModifier from source and checks the inference.
+The `Strength` slider was removed in 0.1.4 at the user's request -- on/off only; an orphan
+`Strength = 1` line may remain in old cfg files and is harmless.
 
 Untested: that Harmony binds `ref float __2` to the out parameter of a static private
 method in a netstandard2.1 assembly (expected), and the Fika case -- SAIN runs on the host,

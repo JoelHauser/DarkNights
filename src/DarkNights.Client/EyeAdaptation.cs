@@ -58,7 +58,7 @@ namespace DarkNights.Client
             if (Time.unscaledTime >= _nextScan)
             {
                 _nextScan = Time.unscaledTime + ScanSeconds;
-                _prisms = Object.FindObjectsOfType(GameTypes.PrismEffects);
+                _prisms = CameraComponents.Find(GameTypes.PrismEffects);
             }
 
             NightState state = NightDriver.Get();

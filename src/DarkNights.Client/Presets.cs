@@ -31,13 +31,16 @@ namespace DarkNights.Client
         {
             switch (level)
             {
-                case DarknessLevel.Lightest: return Make(0.75f, 0.95f, 0.90f, 0.85f, 3.0f);
-                case DarknessLevel.Lighter:  return Make(0.60f, 0.90f, 0.80f, 0.75f, 2.5f);
-                case DarknessLevel.Light:    return Make(0.50f, 0.80f, 0.70f, 0.65f, 2.0f);
-                case DarknessLevel.Dark:     return Make(0.28f, 0.60f, 0.50f, 0.45f, 1.0f);
-                case DarknessLevel.Darker:   return Make(0.20f, 0.50f, 0.40f, 0.35f, 0.5f);
-                case DarknessLevel.Darkest:  return Make(0.12f, 0.40f, 0.30f, 0.25f, 0.0f);
-                default:                     return Make(0.38f, 0.70f, 0.60f, 0.55f, 1.5f);
+                // 0.1.4: the whole ladder moved down after the first nights in game. Even Darkest
+                // under a bright moon kept 36% of the sky and lit rooms at 25% of their daytime
+                // ambient, which read as barely darker than vanilla.
+                case DarknessLevel.Lightest: return Make(0.60f, 0.85f, 0.80f, 0.70f, 3.0f);
+                case DarknessLevel.Lighter:  return Make(0.45f, 0.75f, 0.65f, 0.55f, 2.5f);
+                case DarknessLevel.Light:    return Make(0.33f, 0.62f, 0.52f, 0.42f, 2.0f);
+                case DarknessLevel.Dark:     return Make(0.15f, 0.38f, 0.30f, 0.22f, 1.0f);
+                case DarknessLevel.Darker:   return Make(0.09f, 0.27f, 0.20f, 0.14f, 0.5f);
+                case DarknessLevel.Darkest:  return Make(0.04f, 0.16f, 0.12f, 0.08f, 0.0f);
+                default:                     return Make(0.24f, 0.50f, 0.40f, 0.32f, 1.5f);
             }
         }
 

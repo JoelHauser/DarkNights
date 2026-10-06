@@ -18,12 +18,21 @@ namespace DarkNights.Client
     /// </summary>
     internal static class Reflections
     {
-        private const float ScanSeconds = 2f;
-
         private static readonly Dictionary<Object, Tracked> Intensities = new Dictionary<Object, Tracked>();
-        private static Object[] _lights = new Object[0];
-        private static float _nextScan;
+
+        // AmbientLight is a scene object that draws into the cameras, not a camera component,
+        // so it is collected from the SetSH prefix, which every live one calls each frame.
+        private static readonly HashSet<Object> Lights = new HashSet<Object>();
+        private static readonly System.Predicate<Object> Destroyed = light => light == null;
         private static int _generation = -1;
+
+        internal static void Seen(Object light)
+        {
+            if (light != null)
+            {
+                Lights.Add(light);
+            }
+        }
 
         internal static float LastBase = float.NaN;
         internal static float LastWritten = float.NaN;
@@ -39,23 +48,13 @@ namespace DarkNights.Client
             {
                 _generation = NightDriver.WorldGeneration;
                 Intensities.Clear();
-                _nextScan = 0f;
             }
 
-            if (Time.unscaledTime >= _nextScan)
-            {
-                _nextScan = Time.unscaledTime + ScanSeconds;
-                _lights = Object.FindObjectsOfType(GameTypes.AmbientLight);
-            }
-
+            Lights.RemoveWhere(Destroyed);
             float factor = DarkNightsPlugin.DarkenReflections.Value ? NightDriver.Get().Ambient : 1f;
 
-            foreach (Object light in _lights)
+            foreach (Object light in Lights)
             {
-                if (light == null)
-                {
-                    continue;
-                }
 
                 if (!Intensities.TryGetValue(light, out Tracked tracked))
                 {

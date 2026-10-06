@@ -35,7 +35,9 @@ namespace DarkNights.Client
         }
 
         private const float SweepSeconds = 5f;
-        private const float Step = 0.01f;
+        private const float Step = 0.05f;
+        private const float RelativeStep = 0.25f;
+        private const float MinPassInterval = 0.25f;
 
         private static readonly Dictionary<UnityEngine.Object, AmbientState> Ambients = new Dictionary<UnityEngine.Object, AmbientState>();
         private static readonly Dictionary<UnityEngine.Object, FillState> Fills = new Dictionary<UnityEngine.Object, FillState>();
@@ -43,6 +45,7 @@ namespace DarkNights.Client
 
         private static int _generation = -1;
         private static float _nextSweep;
+        private static float _nextChangePass;
         private static float _appliedAmbient = 1f;
         private static float _appliedFill = 1f;
         private static float _appliedRange = 1f;
@@ -79,13 +82,19 @@ namespace DarkNights.Client
             float fill = FillLightsOff ? 0f : ambient;
 
             bool changed = Moved(ambient, _appliedAmbient) || Moved(fill, _appliedFill) || RangeMultiplier != _appliedRange;
-            if (!changed && Time.unscaledTime < _nextSweep)
+            float now = Time.unscaledTime;
+            if ((!changed || now < _nextChangePass) && now < _nextSweep)
             {
                 return;
             }
 
-            _nextSweep = Time.unscaledTime + SweepSeconds;
+            // A pass rewrites every volume and rebuilds every fill light's GPU data, a few
+            // milliseconds on a big map. Since 0.1.8 the factor moves whenever you walk through
+            // a door, not just at dusk, so passes are held to MinPassInterval apart.
+            _nextSweep = now + SweepSeconds;
+            _nextChangePass = now + MinPassInterval;
 
+            long started = Perf.Start();
             try
             {
                 ApplyAmbient(ambient, DarkNightsPlugin.InteriorFloor.Value);
@@ -95,17 +104,28 @@ namespace DarkNights.Client
             catch (Exception e)
             {
                 DarkNightsPlugin.Log.LogError("Interiors: " + e);
-                _nextSweep = Time.unscaledTime + 60f;
+                _nextSweep = now + 60f;
             }
+
+            Perf.Stop(Perf.Part.Interiors, started);
 
             _appliedAmbient = ambient;
             _appliedFill = fill;
             _appliedRange = RangeMultiplier;
         }
 
-        /// <summary>Changed enough to be worth a pass -- and always when arriving back at exactly vanilla.</summary>
-        private static bool Moved(float now, float applied) =>
-            Math.Abs(now - applied) >= Step || (now >= 1f && applied < 1f) || (now <= 0f && applied > 0f);
+        /// <summary>
+        /// Changed enough to be worth a pass: by Step, or by RelativeStep of itself (so the
+        /// small values of a dark night still move) -- and always when arriving back at exactly
+        /// vanilla.
+        /// </summary>
+        private static bool Moved(float now, float applied)
+        {
+            float delta = Math.Abs(now - applied);
+            return delta >= Step
+                || delta >= RelativeStep * Math.Max(Math.Max(now, applied), 0.01f)
+                || (now >= 1f && applied < 1f) || (now <= 0f && applied > 0f);
+        }
 
         private static void ApplyAmbient(float factor, float floor)
         {

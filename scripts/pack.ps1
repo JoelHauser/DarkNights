@@ -81,7 +81,7 @@ if (-not (Test-Path $dll)) { throw "built, but no DLL at $dll" }
 
 # ------------------------------------------------------------ the references
 
-$allowed = @('mscorlib', 'System', 'System.Core', 'BepInEx', '0Harmony', 'UnityEngine', 'UnityEngine.CoreModule')
+$allowed = @('mscorlib', 'System', 'System.Core', 'BepInEx', '0Harmony', 'UnityEngine', 'UnityEngine.CoreModule', 'UnityEngine.PhysicsModule')
 $references = [System.Reflection.Assembly]::ReflectionOnlyLoadFrom($dll).GetReferencedAssemblies() | ForEach-Object { $_.Name }
 $unexpected = @($references | Where-Object { $allowed -notcontains $_ })
 if ($unexpected.Count -gt 0) {

@@ -25,6 +25,14 @@ namespace DarkNights.Client
         internal static string Location;
         internal static float Hour = float.NaN;
 
+        /// <summary>0 outside a bunker, 1 inside, fading over BunkerFadeSeconds like EFT's own indoor fade.</summary>
+        internal static float Bunker;
+
+        /// <summary>How night it is by the sun alone, before your bunker darkens anything. Bots judge targets by this.</summary>
+        internal static float SkyNightness;
+        private const float BunkerFadeSeconds = 1f;
+        private static bool _wasInBunker;
+
         /// <summary>Why the state is vanilla, when it is. Empty when darkening is live.</summary>
         internal static string Idle = "not started";
 
@@ -103,7 +111,47 @@ namespace DarkNights.Client
             Hour = ReadHour(sky);
             Inputs = input;
             Idle = string.Empty;
-            return NightModel.Evaluate(input, Settings);
+
+            bool inBunker = InBunker();
+            if (inBunker != _wasInBunker)
+            {
+                _wasInBunker = inBunker;
+                DarkNightsPlugin.Log.LogInfo(inBunker ? "Bunker: entered (the map flags this area as a bunker)." : "Bunker: left.");
+            }
+
+            float target = DarkNightsPlugin.DarkBunkers.Value && inBunker ? 1f : 0f;
+            Bunker = Mathf.MoveTowards(Bunker, target, Time.unscaledDeltaTime / BunkerFadeSeconds);
+            NightState night = NightModel.Evaluate(input, Settings);
+            SkyNightness = night.Nightness;
+
+            // A flagged bunker is sealed outright; anywhere else, sealed by however little sky reaches you.
+            float sealedOff = Mathf.Max(Bunker, 1f - Daylight.Here);
+            return NightModel.WithBunker(night, Settings, sealedOff, input.NightVisionOn);
+        }
+
+        /// <summary>Your player is in an area the map flags as a bunker -- the flag that also muffles outside sound.</summary>
+        private static bool InBunker()
+        {
+            if (!GameTypes.BunkerReady)
+            {
+                return false;
+            }
+
+            object manager = GameTypes.EnvironmentManager_Instance.GetValue(null, null);
+            return manager != null && (bool)GameTypes.EnvironmentManager_InBunker.GetValue(manager, null);
+        }
+
+        /// <summary>Whether a point is inside an area the map flags as a bunker. For bots judging a target.</summary>
+        internal static bool IsBunkerAt(Vector3 position)
+        {
+            if (!GameTypes.BunkerAtReady || !DarkNightsPlugin.DarkBunkers.Value)
+            {
+                return false;
+            }
+
+            object manager = GameTypes.EnvironmentManager_Instance.GetValue(null, null);
+            object trigger = manager == null ? null : GameTypes.EnvironmentManager_TriggerAt.Invoke(manager, new object[] { position });
+            return trigger is UnityEngine.Object o && o != null && (bool)GameTypes.IndoorTrigger_IsBunker.GetValue(trigger);
         }
 
         private static NightState Vanilla(string why)
@@ -131,7 +179,7 @@ namespace DarkNights.Client
 
         /// <summary>
         /// Any NightVision effect switched on. The components live on the player's cameras and
-        /// are found again every two seconds, which is cheap and survives a camera swap.
+        /// are read off the live cameras every two seconds, which is cheap and survives a camera swap.
         /// </summary>
         private static bool NightVisionOn()
         {
@@ -143,7 +191,7 @@ namespace DarkNights.Client
             if (Time.unscaledTime >= _nextGoggleScan)
             {
                 _nextGoggleScan = Time.unscaledTime + 2f;
-                _goggles = UnityEngine.Object.FindObjectsOfType(GameTypes.NightVision);
+                _goggles = CameraComponents.Find(GameTypes.NightVision);
             }
 
             foreach (UnityEngine.Object goggle in _goggles)

@@ -11,6 +11,18 @@ namespace DarkNights.Client
     internal static class Diagnostics
     {
         private static float _nextLog;
+        private static string _changedSetting;
+        private static float _settingLogAt;
+
+        /// <summary>
+        /// Called for every change made in the F12 menu. A slider fires this on every step of a
+        /// drag, so the line is written once, half a second after the last change.
+        /// </summary>
+        internal static void SettingChanged(string setting)
+        {
+            _changedSetting = setting;
+            _settingLogAt = Time.unscaledTime + 0.5f;
+        }
 
         internal static void HandleKeys()
         {
@@ -43,6 +55,13 @@ namespace DarkNights.Client
 
         internal static void Tick()
         {
+            if (_changedSetting != null && Time.unscaledTime >= _settingLogAt)
+            {
+                DarkNightsPlugin.Log.LogInfo("Setting changed: " + _changedSetting);
+                _changedSetting = null;
+                Write();
+            }
+
             float interval = DarkNightsPlugin.LogInterval.Value;
             if (interval <= 0f || Time.unscaledTime < _nextLog)
             {
@@ -85,21 +104,31 @@ namespace DarkNights.Client
 
             DarkNightsPlugin.Log.LogInfo(string.Format(CultureInfo.InvariantCulture,
                 "[night] {0} {1} | sun {2:0.0} moon {3:0.0} phase {4:0.00} | cloud {5:0.00} fog {6:0.0000} rain {7:0.00} | NVG {8} | " +
-                "{9} night {10:0.00} -> sky x{11:0.00} moon x{12:0.00} interior x{13:0.00} | {14} | {15} | {16} | " +
-                "interiors {17} ambient / {18} fill, {19}{20}{21} | written by others: light {22}, exposure {23} | reflections {25:0.###} (game {26:0.###}) | {24}",
+                "{9} night {10:0.00} -> sky {11} moon {12} interior {13} | {14} | {15} | {16} | " +
+                "interiors {17} ambient / {18} fill, {19}{20}{21} | written by others: light {22}, exposure {23} | reflections {25:0.###} (game {26:0.###}) | " +
+                "flat ambient {27} x{28:0.##} -> x{29:0.00} | sky SH {32:0.####} | bunker {31:0.00}, daylight here {33:0.00} (open sky {34:0.00}) | {35} | {24} | {30}",
                 NightDriver.Location, hour,
                 i.SunElevation, i.MoonElevation, i.MoonPhase,
                 i.Cloudiness, i.Fog, i.Rain,
                 i.NightVisionOn ? "on" : "off",
-                DarkNightsPlugin.Darkness.Value, s.Nightness, s.Ambient, s.Moonlight, s.Interior,
+                DarkNightsPlugin.Darkness.Value, s.Nightness,
+                Applied(s.Ambient, DarkNightsPlugin.DarkenSky.Value),
+                Applied(s.Moonlight, DarkNightsPlugin.DarkenMoonlight.Value),
+                Applied(s.Interior, DarkNightsPlugin.DarkenInteriors.Value),
                 lightText, EyeAdaptation.Report, Environment(),
                 Interiors.AmbientCount, Interiors.FillCount, ranges,
                 Interiors.RangeMultiplier != 1f ? " (TEST x4)" : string.Empty,
                 Interiors.FillLightsOff ? " (TEST fill off)" : string.Empty,
                 Patches.MoonlightTracking.BaseChanges, EyeAdaptation.OtherWrites,
                 SainBridge.Report() + CloudSixBridge.Report(),
-                Reflections.LastWritten, Reflections.LastBase));
+                Reflections.LastWritten, Reflections.LastBase,
+                ColorUtility.ToHtmlStringRGB(Patches.FlatAmbientBase), Patches.FlatAmbientIntensity, Patches.FlatAmbientFactor,
+                BotDarkness.Report(), NightDriver.Bunker, Patches.LastSkyStrength, Daylight.Here, Daylight.Openness, Perf.Report()));
         }
+
+        /// <summary>The multiplier, or "off" when its part is switched off in the F12 menu.</summary>
+        private static string Applied(float factor, bool on) =>
+            on ? "x" + factor.ToString("0.00", CultureInfo.InvariantCulture) : "off";
 
         private static string Environment()
         {

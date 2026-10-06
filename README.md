@@ -32,10 +32,18 @@ Dark Nights hands SAIN the same sky you're looking at instead. Night falls when 
 actually sets, a bright full moon gives bots some sight back, and a cloudy moonless night
 takes it away. SAIN keeps its own night strength, weather effects and everything else,
 including when bots switch flashlights and NVGs on, which now follows the real darkness.
-Turn it off or blend it under **Bots (SAIN)**. Without SAIN, bots are unchanged.
+Turn it on or off under **Bots (SAIN)**.
 
-> **Status: 0.1.0, not yet run in game.** The darkness levels are a first guess and will
-> be tuned.
+**Bots can't see into the dark.** At night, or in a room daylight doesn't reach, a bot
+without its flashlight or NVGs on only sees you from a few metres away. Stand near a lamp or
+use your own light and you're visible as normal. This part works with or without SAIN.
+Bots can still hear you.
+
+**Rooms without daylight are dark at any hour.** A windowless room, or a bunker, is dark at
+noon and lit only by its lamps.
+
+> **Status: 0.1.9, in testing.** Played in game, but the darkness levels and the indoor
+> daylight are still being tuned.
 
 ## Install
 

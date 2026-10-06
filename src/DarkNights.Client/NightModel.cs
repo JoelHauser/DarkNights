@@ -50,7 +50,10 @@ namespace DarkNights.Client
         /// <summary>The moon's direct light.</summary>
         public float Moonlight;
 
-        /// <summary>Daylight carried into interiors by the game's interior ambient volumes.</summary>
+        /// <summary>
+        /// Daylight carried into interiors by the game's interior ambient volumes, as a share of
+        /// the night sky ambient: the room gets this much of what reaches it from outside.
+        /// </summary>
         public float Interior;
 
         /// <summary>Extra multiplier under full overcast -- cloud blocks moon and starlight.</summary>
@@ -155,7 +158,11 @@ namespace DarkNights.Client
                 Nightness = nightness,
                 Ambient = Lerp(1f, ambientNight, nightness),
                 Moonlight = Lerp(1f, moonlightNight, nightness),
-                Interior = Lerp(1f, s.Interior, nightness),
+                // An unlit room only gets what comes in through its windows, so it darkens with
+                // the night outside -- moon, cloud, fog and rain -- and then by its own share on
+                // top. 0.1.3 used s.Interior alone, so a house was as bright on a moonless,
+                // overcast night as under a full moon.
+                Interior = Lerp(1f, s.Interior * ambientNight, nightness),
                 Exposure = nightness,
             };
 
@@ -172,6 +179,42 @@ namespace DarkNights.Client
             state.Moonlight = Limit(state.Moonlight);
             state.Interior = Limit(state.Interior);
             return state;
+        }
+
+        /// <summary>
+        /// What is left of the sky and interior ambient deep in a bunker: pitch black, so only
+        /// lamps light it. The multipliers act on whatever the game is drawing, which by day is
+        /// daylight, so a night-sized share (0.1-0.2) would still leave a bunker lit at noon.
+        /// Below the normal Floor on purpose -- a bunker is meant to be black.
+        /// </summary>
+        public const float BunkerLevel = 0.01f;
+
+        /// <summary>
+        /// A bunker gets no daylight, so inside one only lamps light it, whatever the hour.
+        /// "bunker" is 0 outside, 1 inside, and fades between. Each part only ever gets darker
+        /// than the night already made it; moonlight and exposure are left to the night.
+        /// </summary>
+        public static NightState WithBunker(NightState night, NightSettings s, float bunker, bool nightVisionOn)
+        {
+            bunker = Clamp01(bunker);
+            if (bunker <= 0f)
+            {
+                return night;
+            }
+
+            float ambient = BunkerLevel;
+            float interior = BunkerLevel;
+            if (nightVisionOn)
+            {
+                float keep = Clamp01(s.NightVisionRetention);
+                ambient = Lerp(ambient, 1f, keep);
+                interior = Lerp(interior, 1f, keep);
+            }
+
+            night.Nightness = Math.Max(night.Nightness, bunker);
+            night.Ambient = Lerp(night.Ambient, Math.Min(night.Ambient, ambient), bunker);
+            night.Interior = Lerp(night.Interior, Math.Min(night.Interior, interior), bunker);
+            return night;
         }
 
         /// <summary>0 under a clear sky, 1 under full overcast, on the game's own cloudiness scale.</summary>
@@ -236,6 +279,56 @@ namespace DarkNights.Client
 
             minimum = (result - ratio) / (1f - ratio);
             return minimum > 0f && minimum <= 1f;
+        }
+
+        /// <summary>Outdoors at night there is always some starlight and sky glow; a silhouette shows against it.</summary>
+        public const float Starlight = 0.06f;
+
+        /// <summary>A target this lit (0..1, 1 = daylight) is seen as normal. Below it, a bot's sight is capped.</summary>
+        public const float LitThreshold = 0.5f;
+
+        /// <summary>The cap just below LitThreshold. It falls from here to the pitch-black range as the light goes.</summary>
+        public const float DimSightRange = 80f;
+
+        /// <summary>
+        /// The share of probe rays reaching open sky at which a place counts as fully in the
+        /// daylight. In the open street it is far above this; beside a wall or in a narrow
+        /// alley, around it.
+        /// </summary>
+        public const float FullDaylightOpenness = 0.2f;
+
+        /// <summary>
+        /// Daylight reaching a point, 0 to 1, from its openness. Square-root shaped: a room
+        /// whose window covers a few percent of its sky is already fairly lit, as a real one
+        /// is, while a sealed room gets nothing.
+        /// </summary>
+        public static float DaylightFromOpenness(float openness) =>
+            Clamp01((float)Math.Sqrt(Clamp01(openness) / FullDaylightOpenness));
+
+        /// <summary>
+        /// How lit a target is where it stands, 0 (pitch black) to 1 (daylight), for a bot with
+        /// no light and no NVG of its own: the sky as bots judge it (sun, moon, cloud, never
+        /// below starlight), times how much of it reaches the spot. A windowless room is dark
+        /// at noon; a lamp the target stands near can only add.
+        /// </summary>
+        public static float TargetLight(float skyVisibility, float daylight, float lampLight)
+        {
+            float ambient = Math.Max(Clamp01(skyVisibility), Starlight) * Clamp01(daylight);
+            return Math.Max(ambient, Clamp01(lampLight));
+        }
+
+        /// <summary>
+        /// The furthest a bot without light or NVG can see a target lit this much, in metres.
+        /// Infinity means no cap: the target is lit well enough for normal sight.
+        /// </summary>
+        public static float SightCap(float targetLight, float pitchBlackRange)
+        {
+            if (targetLight >= LitThreshold)
+            {
+                return float.PositiveInfinity;
+            }
+
+            return Lerp(pitchBlackRange, DimSightRange, targetLight / LitThreshold);
         }
 
         /// <summary>The multiplier to hand back to SAIN in place of its clock-based one.</summary>

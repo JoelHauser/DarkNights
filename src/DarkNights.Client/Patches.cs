@@ -15,12 +15,58 @@ namespace DarkNights.Client
         /// TODSkySimple both build their spherical harmonics and end here.
         /// Parameter by index (__0) so a renamed parameter does not break the patch.
         /// </summary>
-        internal static void SkyAmbientPrefix(ref SphericalHarmonicsL2 __0)
+        internal static void SkyAmbientPrefix(object __instance, ref SphericalHarmonicsL2 __0)
         {
+            Reflections.Seen(__instance as Object);
+            LastSkyStrength = 0.2126f * __0[0, 0] + 0.7152f * __0[1, 0] + 0.0722f * __0[2, 0];
             if (DarkNightsPlugin.DarkenSky.Value)
             {
                 Scale(ref __0, NightDriver.Get().Ambient);
             }
+        }
+
+        /// <summary>
+        /// The game's sky ambient before scaling: the luminance of the harmonics' constant
+        /// term. For the log, to compare day with night and calibrate the bunker level.
+        /// </summary>
+        internal static float LastSkyStrength = float.NaN;
+
+        /// <summary>What LevelSettings wrote before the last scaling, for the log.</summary>
+        internal static Color FlatAmbientBase = Color.clear;
+        internal static float FlatAmbientIntensity = float.NaN;
+        internal static float FlatAmbientFactor = 1f;
+
+        /// <summary>
+        /// LevelSettings.OnPreCullCallback: before every camera renders, it sets Unity's own
+        /// flat ambient (RenderSettings.ambient*) from the map's fixed SkyColor and
+        /// AmbientIntensity. That never follows the time of day, so it lit an unlit room at
+        /// 23:30 exactly as at noon -- an even, directionless glow under everything else. It
+        /// is rewritten from the map's values on every call, so scaling the output here never
+        /// compounds and never fights a mod that edits those values. Night-vision mode is left
+        /// alone: that is the goggles' own ambient.
+        /// </summary>
+        internal static void FlatAmbientPostfix(object __instance)
+        {
+            if (!DarkNightsPlugin.DarkenSky.Value
+                || GameTypes.LevelSettings_AmbientType.GetValue(__instance, null)?.ToString() == "NightVision")
+            {
+                FlatAmbientFactor = 1f;
+                return;
+            }
+
+            float f = NightDriver.Get().Ambient;
+            FlatAmbientBase = RenderSettings.ambientLight;
+            FlatAmbientIntensity = RenderSettings.ambientIntensity;
+            FlatAmbientFactor = f;
+            if (f >= 1f)
+            {
+                return;
+            }
+
+            RenderSettings.ambientLight *= f;
+            RenderSettings.ambientSkyColor *= f;
+            RenderSettings.ambientEquatorColor *= f;
+            RenderSettings.ambientGroundColor *= f;
         }
 
         /// <summary>

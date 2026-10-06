@@ -122,10 +122,9 @@ namespace DarkNights.Client
                 }
 
                 float sky = NightModel.BotVisibility(NightDriver.Inputs, NightDriver.Settings);
-                float ratio = NightModel.Lerp(clockRatio, sky, DarkNightsPlugin.BotsShareStrength.Value);
 
-                __2 = ratio;
-                __result = NightModel.SainModifier(_minimum, ratio);
+                __2 = sky;
+                __result = NightModel.SainModifier(_minimum, sky);
 
                 LastSkyRatio = sky;
                 LastModifier = __result;

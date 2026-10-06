@@ -9,7 +9,7 @@
     <Nullable>disable</Nullable>
 
     <!-- Must match DarkNightsPlugin.PluginVersion. Two places, and they have to agree. -->
-    <Version>0.1.0</Version>
+    <Version>0.1.9</Version>
 
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -49,6 +49,11 @@
       <Private>false</Private>
     </Reference>
     <!-- MonoBehaviour, Light, Color, Vector3, Mathf, SphericalHarmonicsL2, KeyCode. -->
+    <!-- Physics.Raycast, for how much daylight reaches where you stand (Daylight.cs). -->
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>$(GameManaged)\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(GameManaged)\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
