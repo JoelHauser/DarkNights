@@ -339,7 +339,7 @@ so this list is not exhaustive.
 
 ## Rooms without daylight (0.1.7 bunkers, 0.1.8 any room)
 
-**0.1.11 scope decision (the user, 2026-10-06):** dark rooms *by day* are "slightly out of
+**0.1.10 scope decision (the user, 2026-10-06):** dark rooms *by day* are "slightly out of
 scope of Dark Nights ... the job for an illumination overhaul". So room and bunker darkness
 is **night-only by default**: `NightModel.RoomDarkness` multiplies the sealed-off share by
 nightness (fading in with dusk), and the new **`Dark Rooms By Day Too`** (default **off**)
@@ -416,7 +416,7 @@ is what Dark Nights darkens. (Its source has not been read; if it ever sets the 
 somewhere `WeatherCurve` does not return, the log's `cloud fog rain` fields will disagree
 with the sky.)
 
-## Logging and errors (0.1.11)
+## Logging and errors (0.1.10)
 
 What a user's `LogOutput.log` holds: at startup the version, the `Features:` line, any
 "Not found in this game build" names, and the SAIN/CloudSix hookup; per raid a `Raid
@@ -515,6 +515,12 @@ TOD_Sky (then `NightDriver` is idle and SAIN keeps its clock).
 ## Publishing
 
 - Remote **https://github.com/JoelHauser/DarkNights.git**, on `main`.
+- **Releases** (GitHub, all pre-release): `v0.1.0`, `v0.1.10`. On 2026-10-06 the user had
+  the `v0.1.10` release **overwritten** with the work committed as "0.1.11" (night-only
+  rooms, Faults, raid-start log): the version went back to 0.1.10, the tag was moved to
+  that commit and the zip replaced. So "0.1.11" in the commit history is the published
+  0.1.10; the first 0.1.10 build (rooms dark at any hour by default) was public for a few
+  hours only. Next version is 0.1.11.
 - GUID `com.mybutthasarash.darknights`, the prefix the sibling repos use.
 - Version lives in the csproj `<Version>` and `DarkNightsPlugin.PluginVersion`;
   `pack.ps1` refuses to pack if they disagree.

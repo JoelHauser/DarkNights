@@ -2,7 +2,7 @@
 
 Darker, more realistic nights for SPT, inspired by Darker Nights for Fallout 4.
 
-> **Status: 0.1.11, pre-release.** Played in game, but the darkness levels and the indoor
+> **Status: 0.1.10, pre-release.** Played in game, but the darkness levels and the indoor
 > lighting are still being tuned. Reports are very welcome; see
 > [Reporting a problem](#reporting-a-problem).
 

@@ -31,7 +31,7 @@ namespace DarkNights.Client
         public const string PluginName = "Dark Nights";
 
         // Must match <Version> in DarkNights.Client.csproj. pack.ps1 refuses to pack if not.
-        public const string PluginVersion = "0.1.11";
+        public const string PluginVersion = "0.1.10";
 
         internal static ManualLogSource Log;
 
