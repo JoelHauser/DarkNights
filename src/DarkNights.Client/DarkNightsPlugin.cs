@@ -50,7 +50,6 @@ namespace DarkNights.Client
         internal static ConfigEntry<bool> DarkenReflections;
         internal static ConfigEntry<bool> DarkBunkers;
         internal static ConfigEntry<bool> DarkWithoutDaylight;
-        internal static ConfigEntry<bool> DarkRoomsByDay;
         internal static ConfigEntry<float> HandGlowAmount;
         internal static ConfigEntry<bool> HandGlowByDay;
 
@@ -185,12 +184,6 @@ namespace DarkNights.Client
                 "At night, areas the map marks as bunkers -- the ones where outside sound goes muffled -- are as dark " +
                 "as a moonless overcast night, lit only by their lamps. Bots without a light or NVGs cannot see into " +
                 "them either.");
-            DarkRoomsByDay = Config.Bind(parts, "Dark Rooms By Day Too", false,
-                "Off: days are vanilla, indoors and out, and rooms and bunkers only darken at night. On: Dark Rooms " +
-                "and Dark Bunkers apply at noon as well -- a room is lit only where the sun's beams fall through its " +
-                "windows and doors, the rest of it dark, and bots without a light cannot see into it. More a lighting " +
-                "overhaul than a darker night, which is why it is off by default. Overcast days leave windowed rooms " +
-                "close to black.");
             LimitEyeAdaptation = Config.Bind(parts, "Limit Eye Adaptation", true,
                 "Caps how far auto-exposure can brighten a dark night, so the darkness is not adapted straight " +
                 "back away. Lit areas still expose normally. No effect while CloudSix's Disable Eye Adaptation is on " +
@@ -265,9 +258,8 @@ namespace DarkNights.Client
                 "weather. No effect without SAIN. Under Fika, the host's setting is the one that counts.");
             DarknessBlindsBots = Config.Bind(bots, "Darkness Blinds Bots", true,
                 "On: at night a bot with no flashlight and no NVGs on cannot see you in the dark -- in an unlit room " +
-                "only from a few metres, outdoors further the brighter the moon (and in rooms by day too, with Dark " +
-                "Rooms By Day Too). Standing near a lamp, or using your own light, makes you visible as normal. Works " +
-                "with or without SAIN. They can still hear you.");
+                "only from a few metres, outdoors further the brighter the moon. Standing near a lamp, or using your " +
+                "own light, makes you visible as normal. Works with or without SAIN. They can still hear you.");
             PitchBlackSight = Config.Bind(bots, "Pitch Black Sight (m)", 3f,
                 new ConfigDescription("How close a bot without light or NVGs must be to see you in total darkness.",
                     new AcceptableValueRange<float>(1f, 20f)));

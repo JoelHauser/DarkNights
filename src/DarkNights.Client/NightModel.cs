@@ -191,27 +191,24 @@ namespace DarkNights.Client
 
         /// <summary>
         /// What is left of the sky and interior ambient deep in a bunker: pitch black, so only
-        /// lamps light it. The multipliers act on whatever the game is drawing, which by day is
-        /// daylight, so a night-sized share (0.1-0.2) would still leave a bunker lit at noon.
+        /// lamps light it. The multipliers act on whatever the game is drawing, which at dusk is
+        /// still mostly daylight, so a night-sized share (0.1-0.2) would leave a bunker lit then.
         /// Below the normal Floor on purpose -- a bunker is meant to be black.
         /// </summary>
         public const float BunkerLevel = 0.01f;
 
         /// <summary>
-        /// How sealed off a place counts as, 0 (open air) to 1 (no daylight reaches it), once
-        /// the time of day is taken into account. A darker room at night is what Dark Nights is
-        /// for, so by default it fades in with dusk and a day is vanilla, indoors and out.
-        /// Dark rooms at noon are a lighting overhaul rather than a darker night, so they are
-        /// the player's choice ("byDay").
+        /// How sealed off a place counts as, 0 (open air) to 1 (no sky reaches it), once the
+        /// time of day is taken into account. It fades in with dusk, and a day is vanilla,
+        /// indoors and out. Dark rooms at any hour were an option (Dark Rooms By Day Too)
+        /// until 0.1.11, removed after play as broken; a darker room at noon is a lighting
+        /// overhaul's job, not a darker night's.
         /// </summary>
-        public static float RoomDarkness(float sealedOff, float nightness, bool byDay)
-        {
-            sealedOff = Clamp01(sealedOff);
-            return byDay ? sealedOff : sealedOff * Clamp01(nightness);
-        }
+        public static float RoomDarkness(float sealedOff, float nightness) =>
+            Clamp01(sealedOff) * Clamp01(nightness);
 
         /// <summary>
-        /// A bunker gets no daylight, so inside one only lamps light it, whatever the hour.
+        /// At night a bunker gets no sky, so inside one only lamps light it.
         /// "bunker" is 0 outside, 1 inside, and fades between. Each part only ever gets darker
         /// than the night already made it; moonlight and exposure are left to the night.
         /// </summary>
@@ -325,10 +322,10 @@ namespace DarkNights.Client
         public const float OutdoorOpenness = 0.3f;
 
         /// <summary>
-        /// Daylight ambient reaching a point, 0 to 1, from its openness. A room is dark at any
-        /// hour even with windows: the sky's light comes in as the sun's beams through them,
-        /// which the game draws as a shadowed light and this leaves alone, but the rest of the
-        /// room gets none of the sky's even fill. Only near outdoors does the fill come back.
+        /// Sky ambient reaching a point, 0 to 1, from its openness. At night a room is dark even
+        /// with windows: the sky's light comes in as the moon's beams through them, which the
+        /// game draws as a shadowed light and this leaves alone, but the rest of the room gets
+        /// none of the sky's even fill. Only near outdoors does the fill come back.
         /// Being flat across the whole room range also means rays flickering through cracks
         /// as you move change nothing, so the room does not pulse.
         /// </summary>
@@ -339,7 +336,7 @@ namespace DarkNights.Client
         /// How lit a target is where it stands, 0 (pitch black) to 1 (daylight), for a bot with
         /// no light and no NVG of its own: the sky as bots judge it (sun, moon, cloud, never
         /// below starlight), times how much of it reaches the spot. A windowless room is dark
-        /// at noon; a lamp the target stands near can only add.
+        /// at night; a lamp the target stands near can only add.
         /// </summary>
         public static float TargetLight(float skyVisibility, float daylight, float lampLight)
         {

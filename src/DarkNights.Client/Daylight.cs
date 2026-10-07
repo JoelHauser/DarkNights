@@ -8,7 +8,7 @@ namespace DarkNights.Client
     ///
     /// EFT has no notion of whether a room has windows. Its interior volumes carry a fixed
     /// ambient and the sky ambient reaches everything outside them, so a windowless room on a
-    /// second floor is lit at noon like a porch. This measures it instead: rays from the point
+    /// second floor is lit like a porch. This measures it instead: rays from the point
     /// over the upper half of the sphere, stopped by walls, terrain and closed doors
     /// (HighPolyCollider, Terrain, DoorLowPolyCollider) but not by glass (TransparentCollider),
     /// and the share that reaches open sky is how open the point is. A windowless room
@@ -52,10 +52,10 @@ namespace DarkNights.Client
                 Here = 1f;
             }
 
-            // Off, suspended by the A/B key, on an excluded map, or by day when rooms are only
-            // dark at night: no rays.
+            // Off, suspended by the A/B key, on an excluded map, or by day, when rooms are
+            // vanilla: no rays.
             if (!DarkNightsPlugin.DarkWithoutDaylight.Value || NightDriver.Location == null || !string.IsNullOrEmpty(NightDriver.Idle)
-                || (!DarkNightsPlugin.DarkRoomsByDay.Value && NightDriver.SkyNightness <= 0f))
+                || NightDriver.SkyNightness <= 0f)
             {
                 Here = 1f;
                 return;

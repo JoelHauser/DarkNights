@@ -189,9 +189,8 @@ namespace DarkNights.Client
             SkyNightness = night.Nightness;
 
             // A flagged bunker is sealed outright; anywhere else, sealed by however little sky
-            // reaches you. At night only, unless the player wants dark rooms by day too.
-            float sealedOff = NightModel.RoomDarkness(Mathf.Max(Bunker, 1f - Daylight.Here), night.Nightness,
-                DarkNightsPlugin.DarkRoomsByDay.Value);
+            // reaches you. At night only: by day rooms are vanilla.
+            float sealedOff = NightModel.RoomDarkness(Mathf.Max(Bunker, 1f - Daylight.Here), night.Nightness);
             return NightModel.WithBunker(night, Settings, sealedOff, input.NightVisionOn);
         }
 

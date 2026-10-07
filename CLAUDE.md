@@ -15,6 +15,9 @@ still a first ladder, not tuned values. **0.1.10 (2026-10-06, built, not yet run
 user ruled out eye adaptation, and rooms are dark by day windows or not -- see *Rooms
 without daylight*. **0.1.10 played 2026-10-06** (Shoreline, Reserve); **0.1.11 (same day,
 installed on the user's box, not yet run)** -- see *0.1.11: moon, NVGs, the eyepiece glow*.
+**2026-10-07, still 0.1.11 (unreleased):** `Dark Rooms By Day Too` removed -- rooms are dark
+at night only, by the user's decision. The 0.1.11 DLL installed on the user's box predates
+this; rebuild there.
 
 ## The boxes
 
@@ -218,9 +221,9 @@ Fixed in 0.1.10: **Dusk Starts / Night Complete** overlap (-6 to -3) and, crosse
 curve backwards -- full night at noon; the end is now clamped 1 degree below the start.
 **Custom Full Moon** below Moonless made the rising moon darken the night; clamped.
 **Interior Floor** waited up to 5 s for the next sweep; now triggers a pass. Descriptions
-corrected for Sky Ambient (it is also what darkens rooms by day), Limit Eye Adaptation (no
-effect under CloudSix's lock), Hand Glow (HDR only) and Darkness Blinds Bots (rooms at any
-hour, not only at night). By design and described: the Custom section only acts on Custom,
+corrected for Sky Ambient (it is also what darkens dark rooms), Limit Eye Adaptation (no
+effect under CloudSix's lock), Hand Glow (HDR only) and Darkness Blinds Bots (then rooms at
+any hour; night only since 2026-10-07). By design and described: the Custom section only acts on Custom,
 the weather sliders only at night in that weather, Night Vision Keeps Vanilla only with
 NVGs, Reflections nothing with SSR on, Bots Share The Night nothing without SAIN. Section 7
 (test conditions) was removed the same day -- see *Setting the time and weather for a test*.
@@ -340,42 +343,46 @@ so this list is not exhaustive.
 
 ## Rooms without daylight (0.1.7 bunkers, 0.1.8 any room)
 
-**0.1.10 scope decision (the user, 2026-10-06):** dark rooms *by day* are "slightly out of
-scope of Dark Nights ... the job for an illumination overhaul". So room and bunker darkness
-is **night-only by default**: `NightModel.RoomDarkness` multiplies the sealed-off share by
-nightness (fading in with dusk), and the new **`Dark Rooms By Day Too`** (default **off**)
-restores the any-hour behaviour described below. Bots follow the same rule (their target
-probe and bunker check are skipped by day when it is off), and the daylight probe fires no
-rays by day when it is off. Settings renamed: `Dark Rooms` (was "Rooms Without Daylight Are
-Dark"), `Dark Bunkers` (was "Bunkers Dark By Day"). The user's own preference was dark rooms
-at noon -- they will likely turn the option on; do not flip the default.
+**DECIDED 2026-10-07: rooms and bunkers are dark at night only. Daytime darkness is gone,
+not optional.** The user: "lets remove the darkness inside during day - its really
+broken". 0.1.11 deleted `Dark Rooms By Day Too`; what exactly looked broken was not said
+and not diagnosed. With the option off, nothing in the code darkens a room while the sun is
+above `Dusk Starts` -- so if rooms still look dark by day after this, it is something else
+(check the `Raid started:` line for non-default settings, and `Ctrl+F8`). **Do not rebuild daytime room darkness or
+offer it again** -- it is an illumination overhaul's job (the user's own words on
+2026-10-06: "slightly out of scope of Dark Nights"). `NightModel.RoomDarkness(sealedOff,
+nightness)` multiplies the sealed-off share by nightness, fading in with dusk; by day the
+daylight probe fires no rays and bots skip the target probe, bunker check and lamp search.
+An orphan `Dark Rooms By Day Too` line may remain in old cfg files and is harmless.
 
-The user's rule: **a room with no light source and no daylight reaching it is dark, at any
-hour, like real life** -- a windowless second-floor room at noon included. EFT has no
-notion of that: outside an interior volume the sky SH reaches everything.
+History: 0.1.7-0.1.9 darkened rooms at any hour (the user's rule then: "a room with no
+light source and no daylight reaching it is dark, at any hour, like real life"); 0.1.10 made
+that the opt-in `Dark Rooms By Day Too`. Settings renamed in 0.1.10: `Dark Rooms` (was
+"Rooms Without Daylight Are Dark"), `Dark Bunkers` (was "Bunkers Dark By Day"). EFT itself
+has no notion of a dark room: outside an interior volume the sky SH reaches everything.
 
 - **`Daylight.cs`**: 96 directions on a Fibonacci spiral over the upper hemisphere (down to
   y = -0.15), 12 raycasts per frame from `Camera.main`, 150 m, mask HighPolyCollider |
   Terrain | DoorLowPolyCollider (glass passes, closed doors block). `Openness` = share
   that escape; `DaylightFromOpenness = sqrt(openness / 0.2)`; `Here` fades over 0.75 s.
   `NightDriver` feeds `max(bunker, 1 - Here)` into `WithBunker`.
-- **Bunkers** (`Bunkers Dark By Day`): `EnvironmentManager.InBunker` counts as fully
+- **Bunkers** (`Dark Bunkers`): `EnvironmentManager.InBunker` counts as fully
   sealed, with `Bunker: entered/left` in the log.
 - **0.1.10: a room is dark, windows or not.** The user's reference was two photos: a sun
   patch on the floor and a beam through a doorway, with everything else in the room black.
   So the sky's even fill (SH ambient, flat ambient, interior volumes) is **zero up to
   `RoomOpenness` 0.12** and returns on a smoothstep to `OutdoorOpenness` 0.3 (doorway,
-  porch, alley, street). The light that *should* be in the room -- the sun's shadowed
-  beams and lamps -- is the game's own and untouched by day. Replaced 0.1.9's
+  porch, alley, street). The light that *should* be in the room -- the moon's shadowed
+  beams and lamps -- is the game's own and untouched. Replaced 0.1.9's
   `sqrt(openness / 0.2)`, where one ray through a crack (1%) gave daylight 0.23 and rooms
   **pulsed** as rays flickered; inside the room range they now change nothing.
   Both thresholds are guesses from geometry, not measurements -- the `open sky` field of
   the `[night]` line is the number to tune them by (stand in a windowed room, a doorway,
   an alley). Bots share the curve, so a windowed room hides you from a bot with no light
   just as a sealed one does.
-- **Known gaps:** on an overcast day there are no beams, so a windowed room is close to
-  black (real ones are dim but readable near the window); and the 0.75 s fade through a
-  doorway changes the whole frame's ambient at once.
+- **Known gaps:** on an overcast or moonless night there are no beams, so a windowed room
+  is close to black; and the 0.75 s fade through a doorway changes the whole frame's
+  ambient at once.
 - **Trade-off, accepted for now:** the ambient is one value for the whole frame, so from a
   dark room the yard through the doorway dims too. No light bounce: a room opening only
   onto an unlit hallway reads as sealed.
@@ -384,7 +391,7 @@ notion of that: outside an interior volume the sky SH reaches everything.
 
 The user does not want it: "I don't want my characters' eyes adapting -- it doesn't look
 good either." CloudSix's exposure lock stays on, and **do not offer auto-exposure again**.
-Windowed rooms near-black at noon is the intended look, not a side effect (see above).
+Windowed rooms near-black at night is the intended look, not a side effect (see above).
 `Limit Eye Adaptation` stays for players who turn CloudSix's lock off.
 
 ## Bots in the dark (0.1.6, daylight-aware since 0.1.8)

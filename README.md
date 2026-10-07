@@ -23,12 +23,11 @@ How dark it gets depends on the night:
 - A high full moon gives some of the light back. A new moon, or a moon below the horizon,
   doesn't.
 - Cloud hides the moon, and fog and rain darken things further.
-- Dusk and dawn fade smoothly with the real sun. Daytime is unchanged (unless you turn on
-  **Dark Rooms By Day Too**, below).
+- Dusk and dawn fade smoothly with the real sun. Daytime is unchanged, indoors and out.
 
 Flashlights, lamps, lasers, muzzle flash and every other real light are never changed, so
 they matter more at night. Thermals are unaffected. Night vision keeps a configurable share
-of the vanilla night (half by default).
+of the vanilla night (85% by default).
 
 ## Dark rooms
 
@@ -36,20 +35,14 @@ At night a room is dark, lit only by its lamps and whatever light comes in throu
 windows and doors. The areas a map marks as bunkers are as dark as a moonless overcast
 night. The sky's light comes back as you reach a doorway or step outside. This fades in
 with dusk, like the rest of the night. There's no eye adaptation: rooms don't slowly
-brighten while you stand in them.
-
-**Dark Rooms By Day Too** (off by default) carries this into the daytime. A room is then
-lit only where light actually reaches it: the patch of sun through its window or doorway,
-and its lamps. The rest stays dark, even at noon, as a real room does. That's closer to a
-lighting overhaul than to a darker night, which is why it's optional.
+brighten while you stand in them. By day, rooms and bunkers are lit as in vanilla.
 
 ## Bots and the dark
 
 **Bots can't see into the dark.** At night, a bot without its flashlight or NVGs on sees
 you in the dark only from a few metres away. That applies in an unlit room, and outdoors,
-where it sees further the brighter the moon. With **Dark Rooms By Day Too** on, it applies
-in rooms by day as well. Stand near a lamp, or use your own
-light, and you're visible as normal. Bots can still hear you. This works with or without
+where it sees further the brighter the moon. Stand near a lamp, or use your own light, and
+you're visible as normal. Bots can still hear you. This works with or without
 SAIN.
 
 **With SAIN, bots see by the same night you do.** Bots never look at the rendered picture,
@@ -80,9 +73,8 @@ Press F12 (BepInEx Configuration Manager), or edit
 
 - **Darkness**: Lightest, Lighter, Light, Medium (default), Dark, Darker, Darkest, or Custom.
 - **What gets darker**: sky ambient, moonlight, clouds, interiors, reflections, eye
-  adaptation, dark rooms and dark bunkers, each switchable on its own. **Dark Rooms By Day
-  Too** (off) extends dark rooms and bunkers to the daytime. **Hand Glow** sets how much of
-  the hand glow is left (0 by default).
+  adaptation, dark rooms and dark bunkers, each switchable on its own. **Hand Glow** sets
+  how much of the hand glow is left (0 by default).
 - **How the world reacts**: when dusk starts and ends, how much cloud, fog and rain add,
   how much night vision keeps, and the interior floor.
 - **Custom darkness**: your own values, used when Darkness is set to Custom.
@@ -108,9 +100,9 @@ To compare and test:
 
 - **Looking out a doorway:** while you stand in a dark room, the yard you see through the
   door dims with the room.
-- **With Dark Rooms By Day Too on:** on overcast days, with no direct sun coming in, a room
-  with windows is close to black. Bots without a light can't see into a windowed room at
-  noon either. That's on purpose, but say so if it plays badly.
+- **Overcast nights:** with no moon coming in, a room with windows is close to black, and
+  bots without a light can't see into it either. That's on purpose, but say so if it plays
+  badly.
 
 ## Compatibility
 
