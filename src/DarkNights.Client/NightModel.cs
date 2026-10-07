@@ -132,6 +132,14 @@ namespace DarkNights.Client
         /// <summary>Even a clear-sky full moon loses this share of its credit to the cloud it is behind.</summary>
         public const float CloudBlocksMoon = 0.85f;
 
+        /// <summary>
+        /// How much of the preset's cut a high, clear full moon gives back to its own direct light.
+        /// The darkness of a real night is in the shadows and the moonless sky; a bright moon still
+        /// lights treetops and casts shadows. Up to 0.1.10 the cut was flat, so Darkest kept 12%
+        /// of a near-full moon and nothing it shone on read as lit.
+        /// </summary>
+        public const float BrightMoonKeeps = 0.75f;
+
         /// <summary>No multiplier ever goes below this, so a bad setting cannot black the screen out.</summary>
         public const float Floor = 0.02f;
 
@@ -151,7 +159,7 @@ namespace DarkNights.Client
             float weather = Lerp(1f, s.Overcast, cloud) * Lerp(1f, s.FogDark, fog) * Lerp(1f, s.RainDark, rain);
 
             float ambientNight = Lerp(s.MoonlessAmbient, s.FullMoonAmbient, moonCredit) * weather;
-            float moonlightNight = s.Moonlight * Lerp(1f, s.Overcast, cloud);
+            float moonlightNight = Lerp(s.Moonlight, 1f, moonCredit * BrightMoonKeeps) * Lerp(1f, s.Overcast, cloud);
 
             var state = new NightState
             {

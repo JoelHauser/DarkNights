@@ -57,7 +57,7 @@ namespace DarkNights.Client
                 Overcast = 0.6f,
                 FogDark = 0.75f,
                 RainDark = 0.85f,
-                NightVisionRetention = 0.5f,
+                NightVisionRetention = 0.85f,
                 ExposureCeiling = exposureCeiling,
             };
         }

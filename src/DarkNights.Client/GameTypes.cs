@@ -53,6 +53,13 @@ namespace DarkNights.Client
         internal static MethodInfo AmbientHighlight_SetSH;
         internal static MethodInfo CloudController_UpdateAmbient;
 
+        // ------------------------------------------------------- the NVG eyepiece glow
+
+        /// <summary>EFT.Visual.NightVisionDevice.Init(Item, bool): where each worn NVG's glow light is wired to its switch.</summary>
+        internal static MethodInfo NightVisionDevice_Init;
+        internal static FieldInfo NightVisionDevice_Light;            // Light _light, enabled while the NVG is on
+        internal static bool NvgGlowReady;
+
         // ---------------------------------------------------------- the hand glow
 
         /// <summary>AmbientHighlight.ManualOnRenderObject(Camera): where the extra hands/characters pass is recorded.</summary>
@@ -281,6 +288,12 @@ namespace DarkNights.Client
                 BotOwner_LookSensor, BotOwner_NightVision, BotOwner_BotLight, LookSensor_VisibleDist, NightVisionData_UsingNow,
                 BotLight_IsEnable, IPlayer_AIData, IPlayer_Position, AIData_IsInside, AIData_UsingLight);
 
+            Type nvgDevice = Find("EFT.Visual.NightVisionDevice");
+            Type item = Find("EFT.InventoryLogic.Item");
+            NightVisionDevice_Init = item == null ? null : Method(nvgDevice, "Init", new[] { item, typeof(bool) });
+            NightVisionDevice_Light = Field(nvgDevice, "_light");
+            NvgGlowReady = All(NightVisionDevice_Init, NightVisionDevice_Light) && NightVisionDevice_Light.FieldType == typeof(Light);
+
             if (Missing.Count > 0)
             {
                 log.LogWarning("Not found in this game build: " + string.Join(", ", Missing.ToArray()));
@@ -290,7 +303,7 @@ namespace DarkNights.Client
                 $"Features: sky {On(SkyReady)}, weather {On(WeatherReady)}, ambient {On(AmbientReady)}, " +
                 $"highlight {On(HighlightReady)}, hand glow {On(HandGlowReady)}, reflections {On(ReflectionsReady)}, clouds {On(CloudsReady)},moonlight {On(MoonlightReady)}, " +
                 $"interiors {On(InteriorsReady)}, exposure {On(ExposureReady)}, night vision {On(NightVisionReady)}, " +
-                $"raid {On(WorldReady)}, indoor/outdoor {On(EnvironmentReady)}, flat ambient {On(FlatAmbientReady)}, bots in the dark {On(BotDarknessReady)}, bunkers {On(BunkerReady)}");
+                $"raid {On(WorldReady)}, indoor/outdoor {On(EnvironmentReady)}, flat ambient {On(FlatAmbientReady)}, bots in the dark {On(BotDarknessReady)}, bunkers {On(BunkerReady)}, NVG glow {On(NvgGlowReady)}");
         }
 
         // ------------------------------------------------------------- readers

@@ -31,7 +31,7 @@ namespace DarkNights.Client
         public const string PluginName = "Dark Nights";
 
         // Must match <Version> in DarkNights.Client.csproj. pack.ps1 refuses to pack if not.
-        public const string PluginVersion = "0.1.10";
+        public const string PluginVersion = "0.1.11";
 
         internal static ManualLogSource Log;
 
@@ -71,6 +71,7 @@ namespace DarkNights.Client
         internal static ConfigEntry<bool> BotsShareTheNight;
         internal static ConfigEntry<bool> DarknessBlindsBots;
         internal static ConfigEntry<float> PitchBlackSight;
+        internal static ConfigEntry<float> NvgGlowAmount;
 
         internal static ConfigEntry<float> LogInterval;
         internal static ConfigEntry<KeyboardShortcut> ToggleKey;
@@ -92,6 +93,7 @@ namespace DarkNights.Client
             var harmony = new Harmony(PluginGuid);
             Install(harmony);
             HandGlow.Install(harmony);
+            NvgGlow.Install(harmony);
             SainBridge.Install(harmony, Log);
             CloudSixBridge.Install(harmony, Log);
 
@@ -110,6 +112,7 @@ namespace DarkNights.Client
         private static readonly Action DaylightTick = Daylight.Tick;
         private static readonly Action InteriorsTick = Interiors.Tick;
         private static readonly Action DiagnosticsTick = Diagnostics.Tick;
+        private static readonly Action NvgGlowTick = NvgGlow.Tick;
 
         private void LateUpdate()
         {
@@ -121,6 +124,7 @@ namespace DarkNights.Client
 
             Run(Faults.Part.Daylight, "rooms are lit as outdoors", DaylightTick);       // timed itself
             Run(Faults.Part.Interiors, "interiors are vanilla", InteriorsTick);         // timed itself
+            Run(Faults.Part.NvgGlow, "NVG eyepiece glow is vanilla", NvgGlowTick);
             Run(Faults.Part.Diagnostics, "the [night] line is not written", DiagnosticsTick);
         }
 
@@ -224,9 +228,10 @@ namespace DarkNights.Client
             RainDark = Config.Bind(world, "Rain Darkening", 0.85f,
                 new ConfigDescription("Only matters in rain. Extra multiplier in heavy rain. 1 = none.",
                     new AcceptableValueRange<float>(0.1f, 1f)));
-            NightVisionRetention = Config.Bind(world, "Night Vision Keeps Vanilla", 0.5f,
-                new ConfigDescription("Only matters with NVGs on. How much of the vanilla night they see. 0 = they see " +
-                    "the full darkness (realistic, and noisier); 1 = NVGs behave exactly as vanilla.",
+            NightVisionRetention = Config.Bind(world, "Night Vision Keeps Vanilla", 0.85f,
+                new ConfigDescription("Only matters with NVGs on. How much of the vanilla night they see. Real tubes " +
+                    "amplify starlight thousands of times, so outdoors they should see almost a vanilla night; 0 = " +
+                    "they see the full darkness (dim and noisy); 1 = NVGs behave exactly as vanilla.",
                     new AcceptableValueRange<float>(0f, 1f)));
             InteriorFloor = Config.Bind(world, "Interior Floor", 0.005f,
                 new ConfigDescription("Rooms whose ambient is already at or below this brightness are left alone, and no " +
@@ -265,6 +270,11 @@ namespace DarkNights.Client
                 "with or without SAIN. They can still hear you.");
             PitchBlackSight = Config.Bind(bots, "Pitch Black Sight (m)", 3f,
                 new ConfigDescription("How close a bot without light or NVGs must be to see you in total darkness.",
+                    new AcceptableValueRange<float>(1f, 20f)));
+            NvgGlowAmount = Config.Bind(bots, "NVG Eyepiece Glow", 4f,
+                new ConfigDescription("Only matters at night. The green glow EFT puts on the face of anyone wearing NVGs " +
+                    "that are switched on, as a multiple of the game's own. 1 = vanilla, which is barely visible; higher " +
+                    "makes a bot on NVGs easier to spot in the dark. Your own goggles are left alone. Works without SAIN.",
                     new AcceptableValueRange<float>(1f, 20f)));
 
             LogInterval = Config.Bind(diag, "Log Interval (seconds)", 30f,

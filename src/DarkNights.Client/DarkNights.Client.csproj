@@ -9,7 +9,7 @@
     <Nullable>disable</Nullable>
 
     <!-- Must match DarkNightsPlugin.PluginVersion. Two places, and they have to agree. -->
-    <Version>0.1.10</Version>
+    <Version>0.1.11</Version>
 
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

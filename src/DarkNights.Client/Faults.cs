@@ -33,6 +33,7 @@ namespace DarkNights.Client
             HandGlow,
             Sain,
             CloudSix,
+            NvgGlow,
             Count,
         }
 

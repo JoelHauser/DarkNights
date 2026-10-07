@@ -112,6 +112,21 @@ public class NightModelTests
         Assert.True(overcastFull.Ambient - overcastNew.Ambient < (clearFull.Ambient - clearNew.Ambient) / 2f);
     }
 
+    [Fact]
+    public void ABrightHighMoonKeepsMostOfItsLight_EvenOnDarkest()
+    {
+        var s = Presets.For(DarknessLevel.Darkest);
+        var noMoon = NightModel.Evaluate(Night(moon: -10f, phase: 0.87f), s);
+        var thinMoon = NightModel.Evaluate(Night(moon: 30f, phase: 0.1f), s);
+        var brightMoon = NightModel.Evaluate(Night(moon: 30f, phase: 0.87f), s);
+        var cloudedMoon = NightModel.Evaluate(Night(moon: 30f, phase: 0.87f, cloud: 1f), s);
+
+        Assert.Equal(s.Moonlight, noMoon.Moonlight, 5);
+        Assert.True(thinMoon.Moonlight < 0.25f, $"thin moon {thinMoon.Moonlight}");
+        Assert.True(brightMoon.Moonlight > 0.6f, $"bright moon {brightMoon.Moonlight}");
+        Assert.True(cloudedMoon.Moonlight < brightMoon.Moonlight * 0.5f, $"clouded moon {cloudedMoon.Moonlight}");
+    }
+
     // ---------------------------------------------------------------- NVG
 
     [Fact]

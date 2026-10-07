@@ -13,7 +13,8 @@ after it was driven by what the live logs and the user's screenshots showed -- s
 *What the game showed* below. The presets were lowered once after play (0.1.4) and are
 still a first ladder, not tuned values. **0.1.10 (2026-10-06, built, not yet run):** the
 user ruled out eye adaptation, and rooms are dark by day windows or not -- see *Rooms
-without daylight*.
+without daylight*. **0.1.10 played 2026-10-06** (Shoreline, Reserve); **0.1.11 (same day,
+installed on the user's box, not yet run)** -- see *0.1.11: moon, NVGs, the eyepiece glow*.
 
 ## The boxes
 
@@ -416,6 +417,46 @@ is what Dark Nights darkens. (Its source has not been read; if it ever sets the 
 somewhere `WeatherCurve` does not return, the log's `cloud fog rain` fields will disagree
 with the sky.)
 
+## 0.1.11: moon, NVGs, the eyepiece glow (2026-10-06)
+
+What the 0.1.10 raids showed, and what changed:
+
+- **No moonlight on trees.** Direct moonlight was a flat preset cut: Darkest kept 12% of a
+  0.87-phase moon (log: `light 0.06 (game 0.5)`). Now `NightModel.BrightMoonKeeps` 0.75:
+  moonlight = lerp(preset, 1, moonCredit x 0.75), so a high clear bright moon keeps most of
+  its light (Darkest ~x0.69) while a thin, low or clouded one stays dim. The darkness of a
+  bright night is in the shadows and the ambient, not in the moon itself.
+- **NVGs unusable without a full moon.** `Night Vision Keeps Vanilla` default 0.5 -> 0.85
+  (existing cfgs keep their saved value). Most of the rest is **Borkel's Realistic NVGs**:
+  `Allow ambient change` is hidden (`Browsable = false`) *and* forced false at every start,
+  so vanilla's NVG ambient swap is gone; its auto-gain tops out at Maximum EV 3-4 (8-16x).
+  Its `Gain multiplier` (0-5) and per-model `Maximum EV` are the user-side levers. Real Gen 3
+  tubes work on starlight.
+- **NVG eyepiece glow** (`NvgGlow.cs`, setting `NVG Eyepiece Glow`, default 4, section 5).
+  `EFT.Visual.NightVisionDevice` holds one `Light _light`, enabled by the NVG's togglable --
+  for bots too (`BotNightVisionData.ToggleOnIfNeed` sets the same item). Collected from a
+  postfix on `Init(Item, bool)`, never scanned; at night intensity x setting and range x
+  sqrt(setting), faded by nightness; lights within 0.75 m of the camera (your own goggles)
+  are left alone. Up to four `NVG glow:` lines per raid log each light's real intensity,
+  range, colour, render mode and culling mask -- **read them before tuning**; if the prefab
+  light is tiny or culled, brightening it will not be enough.
+- **Flashlights** are never touched by Dark Nights. "Useless on Darkest" was the missing
+  ambient around the beam, plus Unity lights' hard range cut-off showing outdoors.
+  **Amands's Graphics** `Flashlight = On`, `Flashlight Range = 4` only started working with the
+  user's local Amands 1.8.1 fix (renamed field); with it the beam reaches. Its close-range
+  flare on foliage (leaf cards transmitting light, black gaps between) is the plant shader
+  under one strong light on Darkest. A Dark Nights flashlight-range feature was offered and
+  is **not built** while Amands covers it.
+- **Exposure:** keep CloudSix's lock on. With it off, adaptation darkens the frame around a
+  close flashlight pool (the user's "exposure messes with flashlights").
+- **Other lighting mods found, not in the list below:** *Fuck These FX* replaces
+  `AmbientLight`'s `Hidden/WriteScreenAmbient` shader (Custom Ambient Fix, XeGTAO),
+  disables `AmbientHighlight` and resizes Prism's exposure input -- the user **removed it**
+  while hunting a conflict (signs and light props stayed bright on Darkest; not resolved).
+  *7Bpencil BrighterInteriors* prefix-replaces `AmbientLight.DrawStencilShadow` and multiplies
+  `StencilShadow.Ambient` by its Shadow Opacity (0.7) **including alpha** -- which suggests
+  the alpha is the shadow's strength, relevant to *Interiors: replace or multiply?*
+
 ## Logging and errors (0.1.10)
 
 What a user's `LogOutput.log` holds: at startup the version, the `Features:` line, any
@@ -520,7 +561,7 @@ TOD_Sky (then `NightDriver` is idle and SAIN keeps its clock).
   rooms, Faults, raid-start log): the version went back to 0.1.10, the tag was moved to
   that commit and the zip replaced. So "0.1.11" in the commit history is the published
   0.1.10; the first 0.1.10 build (rooms dark at any hour by default) was public for a few
-  hours only. Next version is 0.1.11.
+  hours only. 0.1.11 is committed, not released.
 - GUID `com.mybutthasarash.darknights`, the prefix the sibling repos use.
 - Version lives in the csproj `<Version>` and `DarkNightsPlugin.PluginVersion`;
   `pack.ps1` refuses to pack if they disagree.
